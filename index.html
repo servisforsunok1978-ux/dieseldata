@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<!-- saved from url=(0026)https://dieseldata.online/ -->
+<html lang="uk"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Дизель-Підбір</title>
+<link rel="manifest" href="https://dieseldata.online/manifest.json">
+<meta name="theme-color" content="#0f1217">
+<link rel="apple-touch-icon" href="https://dieseldata.online/pwa/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Дизель-Підбір">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --bg:#0f1217;
+  --bg-2:#141922;
+  --surface:#1a2029;
+  --surface-2:#212936;
+  --line:#2b3442;
+  --line-soft:#232b37;
+  --txt:#e9eef5;
+  --txt-2:#9aa6b6;
+  --txt-3:#68748557;
+  --muted:#6b7686;
+  --amber:#f6a623;      /* Форсунка / інжектор */
+  --amber-dim:#3a2c14;
+  --teal:#43b7c9;       /* Насос */
+  --teal-dim:#123138;
+  --green:#57c78a;
+  --radius:14px;
+  --radius-s:10px;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --ui:'Space Grotesk',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  --shadow:0 8px 30px -12px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:
+    radial-gradient(1100px 500px at 82% -8%, #1b2431 0%, transparent 60%),
+    radial-gradient(900px 500px at -5% 108%, #17202b 0%, transparent 55%),
+    var(--bg);
+  color:var(--txt);
+  font-family:var(--ui);
+  font-size:15px;
+  line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+button{font-family:inherit;cursor:pointer}
+input,select{font-family:inherit}
+::selection{background:var(--amber);color:#111}
+
+.wrap{max-width:1080px;margin:0 auto;padding:0 18px 90px}
+
+/* ---------- Header ---------- */
+header.top{
+  position:sticky;top:0;z-index:40;
+  background:linear-gradient(180deg,rgba(15,18,23,.96),rgba(15,18,23,.82));
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line-soft);
+}
+.top-in{max-width:1080px;margin:0 auto;padding:12px 18px;display:flex;align-items:center;gap:14px}
+.brand{display:flex;align-items:center;gap:11px;flex-shrink:0}
+.mark{
+  width:38px;height:38px;border-radius:10px;flex-shrink:0;
+  background:linear-gradient(150deg,#20293a,#131920);
+  border:1px solid var(--line);
+  display:grid;place-items:center;position:relative;overflow:hidden;
+}
+.mark svg{width:22px;height:22px}
+.mark::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 130%,rgba(246,166,35,.4),transparent 60%)}
+.brand .name{font-weight:700;font-size:16px;letter-spacing:.02em;line-height:1.05}
+.brand .sub{font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase;font-weight:500}
+.spacer{flex:1}
+
+.search{
+  position:relative;flex:1;max-width:340px;min-width:0;
+}
+.search input{
+  width:100%;height:40px;border-radius:10px;border:1px solid var(--line);
+  background:var(--bg-2);color:var(--txt);padding:0 12px 0 38px;font-size:14px;outline:none;
+  transition:border-color .15s,box-shadow .15s;
+}
+.search input:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(246,166,35,.14)}
+.search input::placeholder{color:var(--muted)}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted);pointer-events:none}
+.search .clr{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--muted);font-size:18px;line-height:1;padding:4px;display:none}
+.search.has-val .clr{display:block}
+
+.iconbtn{
+  height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--line);
+  background:var(--surface);color:var(--txt);font-weight:600;font-size:13.5px;
+  display:inline-flex;align-items:center;gap:7px;white-space:nowrap;transition:.15s;
+}
+.iconbtn:hover{border-color:#3a4658;background:var(--surface-2)}
+.iconbtn svg{width:15px;height:15px}
+.iconbtn .lbl-full{display:inline}
+
+/* ---------- Filters ---------- */
+.panel{
+  background:linear-gradient(180deg,var(--surface),var(--bg-2));
+  border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px;margin-top:20px;box-shadow:var(--shadow);
+}
+.panel-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;gap:10px}
+.panel-head h2{margin:0;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--txt-2);font-weight:600}
+.reset{background:none;border:0;color:var(--muted);font-size:12.5px;font-weight:500;display:none;align-items:center;gap:5px;padding:4px 6px;border-radius:7px}
+.reset:hover{color:var(--amber);background:rgba(246,166,35,.08)}
+.reset.show{display:inline-flex}
+
+
+.filters{display:grid;gap:11px}
+.filters.primary{grid-template-columns:1fr 1fr}
+.filters.secondary{grid-template-columns:repeat(3,1fr);margin-top:11px;transition:opacity .2s}
+.filters.secondary.locked{opacity:.4;pointer-events:none;filter:saturate(.4)}
+.lockhint{display:none;margin-top:13px;font-size:12.5px;color:var(--muted);align-items:center;gap:8px;padding-left:2px}
+.lockhint.show{display:flex}
+.lockhint::before{content:"";width:14px;height:14px;flex-shrink:0;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4'/%3E%3C/svg%3E") center/contain no-repeat}
+.field input.filterin{width:100%;height:42px;border-radius:10px;border:1px solid var(--line);background:var(--bg-2);color:var(--txt);padding:0 12px;font-size:14px;outline:none;transition:border-color .15s,box-shadow .15s}
+.field input.filterin:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(246,166,35,.14)}
+.field input.filterin::placeholder{color:var(--muted)}
+.field input.filterin.set{border-color:#41506680}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;padding-left:2px}
+.selwrap{position:relative}
+.selwrap::after{content:"";position:absolute;right:13px;top:50%;width:8px;height:8px;border-right:2px solid var(--txt-2);border-bottom:2px solid var(--txt-2);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+select{
+  width:100%;height:42px;border-radius:10px;border:1px solid var(--line);
+  background:var(--bg-2);color:var(--txt);padding:0 34px 0 12px;font-size:14px;outline:none;
+  appearance:none;transition:border-color .15s,box-shadow .15s;
+}
+select:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(246,166,35,.14)}
+select:disabled{opacity:.45;cursor:not-allowed}
+select.set{border-color:#41506680}
+
+/* ---------- Results ---------- */
+.res-head{display:flex;align-items:center;justify-content:space-between;margin:26px 2px 12px;gap:12px}
+.res-head .count{font-size:13px;color:var(--txt-2)}
+.res-head .count b{color:var(--txt);font-weight:600}
+.res-head .count .amber{color:var(--amber)}
+
+.cards{display:flex;flex-direction:column;gap:12px}
+.card{
+  background:linear-gradient(180deg,var(--surface),var(--bg-2));
+  border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+  transition:border-color .15s;
+}
+.card:hover{border-color:#3a4658}
+.card-top{padding:14px 16px 12px;border-bottom:1px solid var(--line-soft);display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
+.card-desc{min-width:0;line-height:1.35}
+.card-title{font-weight:700;font-size:15.5px;letter-spacing:.01em}
+.card-specs{font-family:var(--ui);font-size:15.5px;font-weight:500;color:var(--txt);letter-spacing:.01em}
+.spec-year{font-family:var(--ui);font-size:14px;font-weight:500;color:var(--txt);letter-spacing:.01em}
+.spec-code{font-family:var(--ui);font-size:10px;font-weight:300;color:var(--txt);letter-spacing:.02em}
+.chip.vin{margin-left:auto;font-family:var(--mono);letter-spacing:-.01em;display:inline-flex;align-items:center;gap:6px;color:var(--txt-2);cursor:pointer;transition:.12s}
+.chip.vin:hover{border-color:#3a4658;color:var(--txt)}
+.chip.vin .chip-k{font-family:var(--ui);font-size:9.5px;font-weight:700;letter-spacing:.1em;color:var(--muted)}
+.chip.vin .cpi{width:12px;height:12px;opacity:0;transition:opacity .12s;color:var(--muted)}
+.chip.vin:hover .cpi{opacity:.85}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:11.5px;color:var(--txt-2);background:var(--bg);border:1px solid var(--line-soft);padding:3px 9px;border-radius:20px;font-weight:500;white-space:nowrap}
+.chip.eng{font-family:var(--mono);letter-spacing:-.02em}
+.chip.q{color:var(--muted)}
+
+.readouts{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line-soft)}
+.ro{background:var(--bg-2);padding:12px 15px;min-width:0}
+.ro .k{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.ro .k .dot{width:7px;height:7px;border-radius:50%}
+.ro.inj .k .dot{background:var(--amber)}
+.ro.pmp .k .dot{background:var(--teal)}
+.ro.mfr{grid-column:1/-1}
+.ro .v{font-family:var(--mono);font-size:15px;font-weight:500;word-break:break-word;line-height:1.35}
+.ro.inj .v{color:var(--amber)}
+.ro.pmp .v{color:var(--teal)}
+.ro .v.empty{color:var(--txt-3);font-family:var(--ui)}
+
+.mbadge{
+  display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:13.5px;
+  font-family:var(--ui);
+}
+.mbadge .sw{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+
+.copy{
+  display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+  border:0;background:none;color:inherit;font:inherit;padding:0;text-align:left;
+  border-radius:6px;transition:.12s;position:relative;
+}
+.copy:hover .v{text-decoration:underline;text-decoration-color:currentColor;text-underline-offset:3px}
+.copy .cpi{width:13px;height:13px;opacity:0;transition:opacity .12s;color:var(--muted);flex-shrink:0;margin-top:3px}
+.copy:hover .cpi{opacity:.8}
+
+.vinline{padding:9px 16px;border-top:1px solid var(--line-soft);font-size:11.5px;color:var(--muted);display:flex;gap:8px;align-items:center}
+
+/* injector with spec sheet */
+.injwrap{display:inline-flex;align-items:flex-start;gap:7px}
+.injwrap .copy .v{border-bottom:1px dotted var(--amber);padding-bottom:1px}
+.specbtn{flex-shrink:0;width:17px;height:17px;margin-top:2px;border-radius:50%;border:1px solid var(--amber);background:transparent;color:var(--amber);font-family:var(--ui);font-weight:700;font-size:11px;font-style:italic;line-height:1;display:grid;place-items:center;cursor:pointer;transition:.12s}
+.specbtn:hover{background:var(--amber);color:#161009}
+
+.spec-pop{
+  position:fixed;z-index:300;max-width:340px;width:max-content;
+  background:#0c0f14;border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 16px 46px -10px rgba(0,0,0,.85);padding:12px 14px;
+  opacity:0;pointer-events:none;transform:translateY(4px);transition:opacity .13s,transform .13s;
+}
+.spec-pop.show{opacity:1;pointer-events:auto;transform:translateY(0)}
+.spec-pop .sp-title{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--amber);margin-bottom:9px;padding-bottom:8px;border-bottom:1px solid var(--line-soft)}
+.spec-pop .sp-row{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:3px 0;align-items:baseline}
+.spec-pop .sp-k{font-size:11px;color:var(--muted);white-space:nowrap;font-weight:500}
+.spec-pop .sp-v{font-family:var(--mono);font-size:12.5px;color:var(--txt);text-align:right;word-break:break-word}
+.spec-pop .sp-v.dash{color:var(--txt-3);color:#5c6675}
+.vinline b{color:var(--txt-2);font-weight:600;letter-spacing:.1em;text-transform:uppercase;font-size:10.5px}
+.vinline .vv{font-family:var(--mono);color:var(--txt-2)}
+
+/* Empty / hint states */
+.state{text-align:center;padding:52px 20px;color:var(--muted)}
+.state .ic{width:46px;height:46px;margin:0 auto 14px;color:#3a4453}
+.state h3{margin:0 0 6px;font-size:16px;color:var(--txt-2);font-weight:600}
+.state p{margin:0;font-size:13.5px;max-width:340px;margin-inline:auto;line-height:1.5}
+
+/* ---------- Toast ---------- */
+.toast{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  background:#0c0f14;border:1px solid var(--line);color:var(--txt);
+  padding:11px 16px;border-radius:11px;font-size:13.5px;font-weight:600;
+  display:flex;align-items:center;gap:9px;box-shadow:0 12px 40px -8px rgba(0,0,0,.8);
+  opacity:0;pointer-events:none;transition:.25s cubic-bezier(.2,.8,.2,1);z-index:200;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast svg{width:16px;height:16px;color:var(--green)}
+.toast .mono{font-family:var(--mono);color:var(--amber);font-weight:500}
+
+/* ---------- Manager (slide-over) ---------- */
+.scrim{position:fixed;inset:0;background:rgba(6,8,11,.66);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:.2s;z-index:100}
+.scrim.show{opacity:1;pointer-events:auto}
+.drawer{
+  position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);
+  background:var(--bg);border-left:1px solid var(--line);z-index:110;
+  transform:translateX(100%);transition:transform .28s cubic-bezier(.3,.8,.3,1);
+  display:flex;flex-direction:column;
+}
+.drawer.show{transform:translateX(0)}
+.drawer-head{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.drawer-head h2{margin:0;font-size:15px;font-weight:700;display:flex;align-items:center;gap:9px}
+.drawer-head h2 svg{width:18px;height:18px;color:var(--amber)}
+.x{background:none;border:0;color:var(--muted);font-size:24px;line-height:1;padding:4px 8px;border-radius:8px}
+.x:hover{color:var(--txt);background:var(--surface)}
+.drawer-body{overflow-y:auto;padding:18px;flex:1}
+
+.mtools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.mtool{flex:1;min-width:100px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--txt-2);font-weight:600;font-size:12.5px;display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:.15s}
+.mtool:hover{color:var(--txt);border-color:#3a4658}
+.mtool svg{width:14px;height:14px}
+.mtool.danger:hover{color:#ff8b7a;border-color:#5a2b28}
+
+.formcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:15px;margin-bottom:18px}
+.formcard .fh{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt-2);font-weight:600;margin-bottom:13px;display:flex;justify-content:space-between;align-items:center}
+.formcard .fh .editing{color:var(--amber);font-size:11px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fld{display:flex;flex-direction:column;gap:5px}
+.fld.wide{grid-column:1/-1}
+.fld label{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.fld label .req{color:var(--amber)}
+.fld input{height:38px;border-radius:9px;border:1px solid var(--line);background:var(--bg-2);color:var(--txt);padding:0 11px;font-size:13.5px;outline:none;transition:.15s}
+.fld input:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(246,166,35,.13)}
+.fld input.mono{font-family:var(--mono)}
+.fld .hint{font-size:10.5px;color:var(--txt-3);color:#5c6675}
+.formact{display:flex;gap:9px;margin-top:14px}
+.btn-primary{flex:1;height:40px;border-radius:10px;border:0;background:var(--amber);color:#161009;font-weight:700;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:.15s}
+.btn-primary:hover{background:#ffb636}
+.btn-primary svg{width:15px;height:15px}
+.btn-ghost{height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--txt-2);font-weight:600;font-size:13.5px}
+.btn-ghost:hover{color:var(--txt);border-color:#3a4658}
+
+.msearch{position:relative;margin-bottom:12px}
+.msearch input{width:100%;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--bg-2);color:var(--txt);padding:0 12px 0 36px;font-size:13.5px;outline:none}
+.msearch input:focus{border-color:var(--amber)}
+.msearch svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--muted)}
+.mlist-head{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:6px 2px 10px;display:flex;justify-content:space-between}
+.mrow{background:var(--surface);border:1px solid var(--line-soft);border-radius:10px;padding:11px 13px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.mrow .mr-main{flex:1;min-width:0}
+.mrow .mr-t{font-weight:600;font-size:13.5px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .mr-s{font-size:11px;color:var(--muted);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .mr-s .a{color:var(--amber)}
+.mrow .mr-s .t{color:var(--teal)}
+.mrow .mbtn{background:none;border:1px solid var(--line);border-radius:8px;color:var(--txt-2);width:32px;height:32px;display:grid;place-items:center;flex-shrink:0;transition:.15s}
+.mrow .mbtn:hover{color:var(--txt);border-color:#3a4658}
+.mrow .mbtn.del:hover{color:#ff8b7a;border-color:#5a2b28}
+.mrow .mbtn svg{width:14px;height:14px}
+.mbrand{font-size:10px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:5px;background:var(--bg);border:1px solid var(--line-soft);color:var(--txt-2);flex-shrink:0}
+
+.file-hidden{display:none}
+
+/* ---------- Responsive ---------- */
+@media(max-width:720px){
+  .filters.secondary{grid-template-columns:1fr 1fr}
+  .top-in{flex-wrap:wrap}
+  .search{order:3;max-width:none;flex-basis:100%}
+  .iconbtn .lbl-full{display:none}
+  .iconbtn{padding:0 12px}
+  .brand .sub{display:none}
+}
+@media(max-width:460px){
+  .filters.secondary{grid-template-columns:1fr}
+  .readouts{grid-template-columns:1fr}
+  .fgrid{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<style>
+/* ---- account chip + sign out (замість кнопки «База») ---- */
+.acct{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--txt-2);white-space:nowrap}
+.acct .em{max-width:180px;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:720px){ .acct .em{display:none} }
+/* ---- login overlay ---- */
+.login-scrim{position:fixed;inset:0;z-index:500;display:grid;place-items:center;padding:20px;
+  background:radial-gradient(1100px 500px at 82% -8%, #1b2431 0%, transparent 60%),
+             radial-gradient(900px 500px at -5% 108%, #17202b 0%, transparent 55%), var(--bg)}
+.login-card{width:100%;max-width:400px;background:linear-gradient(180deg,var(--surface),var(--bg-2));
+  border:1px solid var(--line);border-radius:var(--radius);padding:26px 24px;box-shadow:var(--shadow)}
+.login-card .lg-brand{display:flex;align-items:center;gap:11px;margin-bottom:20px}
+.login-card h1{font-size:19px;margin:0 0 4px}
+.login-card .lead{color:var(--txt-2);font-size:13.5px;margin:0 0 18px;line-height:1.5}
+.login-card label{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;margin:14px 0 6px}
+.login-card input{width:100%;height:42px;border-radius:10px;border:1px solid var(--line);
+  background:var(--bg-2);color:var(--txt);padding:0 12px;font-size:14px;outline:none;transition:.15s}
+.login-card input:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(246,166,35,.14)}
+.pw-field{position:relative}
+.pw-field input{padding-right:44px}
+.pw-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:32px;height:32px;
+  display:grid;place-items:center;background:none;border:0;color:var(--muted);cursor:pointer;border-radius:8px;transition:.12s}
+.pw-toggle:hover{color:var(--txt);background:var(--surface-2)}
+.pw-toggle svg{width:18px;height:18px}
+.login-row{display:flex;gap:10px;margin-top:18px}
+.login-row .btn-primary{flex:1}
+.btn-primary{height:42px;border-radius:10px;border:0;background:var(--amber);color:#161009;
+  font-weight:700;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:.15s}
+.btn-primary:hover{background:#ffb636}
+.btn-outline{height:42px;padding:0 16px;border-radius:10px;border:1px solid var(--line);
+  background:none;color:var(--txt);font-weight:600;font-size:13.5px;transition:.15s}
+.btn-outline:hover{border-color:#3a4658;background:var(--surface-2)}
+.linkbtn{background:none;border:0;color:var(--teal);cursor:pointer;font-size:13px;padding:8px 0;margin-top:4px}
+.lg-msg{margin-top:14px;font-size:13px;padding:10px 12px;border-radius:10px;display:none;line-height:1.45}
+.lg-msg.err{display:block;background:#2a1717;border:1px solid #4a2626;color:#e06a6a}
+.lg-msg.ok{display:block;background:#16241b;border:1px solid #274734;color:var(--green)}
+.hidden{display:none!important}
+</style>
+</head>
+
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#f6a623" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2.5v6"></path><path d="M9 8.5h6l-1 3.5H10z"></path><path d="M12 12v4"></path><path d="M9.5 16h5l-.6 5h-3.8z"></path>
+        </svg>
+      </div>
+      <div>
+        <div class="name">Дизель-Підбір</div>
+        <div class="sub">форсунки · насоси</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div class="search" id="searchWrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>
+      <input id="globalSearch" name="q_search" type="text" placeholder="Пошук: модель, код двигуна, № форсунки, VIN…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-autocomplete="none" readonly="">
+      <button class="clr" id="searchClear" aria-label="Очистити">×</button>
+    </div>
+    <span class="acct" id="acct"><span class="em">remontforsunok.com@gmail.com</span></span>
+    <button class="iconbtn" id="installBtn" style="display:none" title="Встановити застосунок">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+      <span class="lbl-full">Встановити</span>
+    </button>
+    <button class="iconbtn" id="signout" title="Вийти">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><path d="M10 17l5-5-5-5"></path><path d="M15 12H3"></path></svg>
+      <span class="lbl-full">Вийти</span>
+    </button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Підбір автомобіля</h2>
+      <button class="reset" id="resetFilters">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path></svg>
+        Скинути
+      </button>
+    </div>
+    <div class="filters primary" id="filtersPrimary"><div class="field"><label>Марка авто</label><div class="selwrap"><select><option value="">— всі (3) —</option><option value="AUDI">AUDI  (146)</option><option value="HONDA">HONDA  (18)</option><option value="HYUNDAI">HYUNDAI  (73)</option></select></div></div><div class="field"><label>Модель</label><div class="selwrap"><select disabled=""><option value="">— всі (56) —</option><option value="AUDI 100">AUDI 100  (3)</option><option value="AUDI 80">AUDI 80  (3)</option><option value="AUDI A1">AUDI A1  (3)</option><option value="AUDI A2">AUDI A2  (2)</option><option value="AUDI A3">AUDI A3  (13)</option><option value="AUDI A4">AUDI A4  (24)</option><option value="AUDI A5">AUDI A5  (11)</option><option value="AUDI A6">AUDI A6  (30)</option><option value="AUDI A7">AUDI A7  (5)</option><option value="AUDI A8">AUDI A8  (9)</option><option value="AUDI Q2">AUDI Q2  (3)</option><option value="AUDI Q3">AUDI Q3  (3)</option><option value="AUDI Q5">AUDI Q5  (11)</option><option value="AUDI Q7">AUDI Q7  (12)</option><option value="AUDI Q8">AUDI Q8  (3)</option><option value="AUDI S6">AUDI S6  (1)</option><option value="AUDI S7 Sportback">AUDI S7 Sportback  (2)</option><option value="AUDI SQ5">AUDI SQ5  (3)</option><option value="AUDI SQ7">AUDI SQ7  (1)</option><option value="AUDI SQ8">AUDI SQ8  (1)</option><option value="AUDI TT">AUDI TT  (3)</option><option value="HONDA Accord">HONDA Accord  (4)</option><option value="HONDA City">HONDA City  (1)</option><option value="HONDA Civic">HONDA Civic  (7)</option><option value="HONDA CRV">HONDA CRV  (4)</option><option value="HONDA FR-V">HONDA FR-V  (1)</option><option value="HONDA HR-V">HONDA HR-V  (1)</option><option value="HYUNDAI Accent">HYUNDAI Accent  (3)</option><option value="HYUNDAI Avante">HYUNDAI Avante  (1)</option><option value="HYUNDAI Elantra">HYUNDAI Elantra  (3)</option><option value="HYUNDAI Galloper">HYUNDAI Galloper  (1)</option><option value="HYUNDAI Getz">HYUNDAI Getz  (1)</option><option value="HYUNDAI Grandeur">HYUNDAI Grandeur  (1)</option><option value="HYUNDAI H-1">HYUNDAI H-1  (5)</option><option value="HYUNDAI H-100">HYUNDAI H-100  (1)</option><option value="HYUNDAI H-200">HYUNDAI H-200  (1)</option><option value="HYUNDAI H-350">HYUNDAI H-350  (1)</option><option value="HYUNDAI HD35">HYUNDAI HD35  (1)</option><option value="HYUNDAI HD78">HYUNDAI HD78  (1)</option><option value="HYUNDAI i10">HYUNDAI i10  (1)</option><option value="HYUNDAI i20">HYUNDAI i20  (7)</option><option value="HYUNDAI i30">HYUNDAI i30  (7)</option><option value="HYUNDAI i40">HYUNDAI i40  (2)</option><option value="HYUNDAI IX-35">HYUNDAI IX-35  (3)</option><option value="HYUNDAI IX-55">HYUNDAI IX-55  (2)</option><option value="HYUNDAI ix20">HYUNDAI ix20  (2)</option><option value="HYUNDAI Kona">HYUNDAI Kona  (1)</option><option value="HYUNDAI Matrix">HYUNDAI Matrix  (1)</option><option value="HYUNDAI Palisade">HYUNDAI Palisade  (1)</option><option value="HYUNDAI Santa Fe">HYUNDAI Santa Fe  (10)</option><option value="HYUNDAI Sonata">HYUNDAI Sonata  (2)</option><option value="HYUNDAI Starex">HYUNDAI Starex  (2)</option><option value="HYUNDAI Staria">HYUNDAI Staria  (1)</option><option value="HYUNDAI Terracan">HYUNDAI Terracan  (2)</option><option value="HYUNDAI Trajet">HYUNDAI Trajet  (1)</option><option value="HYUNDAI Tucson">HYUNDAI Tucson  (8)</option></select></div></div></div>
+    <div class="lockhint show" id="lockHint">Оберіть марку авто, щоб активувати поля підбору</div>
+    <div class="filters secondary locked" id="filtersSecondary"><div class="field"><label>Об'єм</label><div class="selwrap"><select disabled=""><option value="">— всі —</option><option value="1.1 CRDi">1.1 CRDi</option><option value="1.2 TDI">1.2 TDI</option><option value="1.4 CRDi">1.4 CRDi</option><option value="1.4 TDI">1.4 TDI</option><option value="1.5 CRDi">1.5 CRDi</option><option value="1.5 i-DTEC">1.5 i-DTEC</option><option value="1.6 CRDi">1.6 CRDi</option><option value="1.6 D">1.6 D</option><option value="1.6 i-DTEC">1.6 i-DTEC</option><option value="1.6 TD">1.6 TD</option><option value="1.6 TDI">1.6 TDI</option><option value="1.7 CRDi">1.7 CRDi</option><option value="1.7 CTDi">1.7 CTDi</option><option value="1.9 TD">1.9 TD</option><option value="1.9 TDI">1.9 TDI</option><option value="2.0">2.0</option><option value="2.0 CRDi">2.0 CRDi</option><option value="2.0 TD">2.0 TD</option><option value="2.0 TDI">2.0 TDI</option><option value="2.2 CRDi">2.2 CRDi</option><option value="2.2 i-CTDi">2.2 i-CTDi</option><option value="2.2 i-DTEC">2.2 i-DTEC</option><option value="2.4 D">2.4 D</option><option value="2.5">2.5</option><option value="2.5 CRDi">2.5 CRDi</option><option value="2.5 D">2.5 D</option><option value="2.5 TD">2.5 TD</option><option value="2.5 TDI">2.5 TDI</option><option value="2.7 TDI">2.7 TDI</option><option value="2.9 CRDi">2.9 CRDi</option><option value="3.0 BiTDI">3.0 BiTDI</option><option value="3.0 CRDi V6">3.0 CRDi V6</option><option value="3.0 TDI">3.0 TDI</option><option value="3.3 TDI">3.3 TDI</option><option value="3.9">3.9</option><option value="4.0 TDI">4.0 TDI</option><option value="4.0 TDI V8">4.0 TDI V8</option><option value="4.2 TDI">4.2 TDI</option><option value="6.0 TDI V12">6.0 TDI V12</option></select></div></div><div class="field"><label>Роки випуску</label><input class="filterin" type="text" placeholder="напр. 2018 або 2015-2020" disabled=""></div><div class="field"><label>Покоління</label><div class="selwrap"><select disabled=""><option value="">— всі —</option><option value="—">—</option><option value="I">I</option><option value="I / II">I / II</option><option value="II">II</option><option value="II / III">II / III</option><option value="III">III</option><option value="III / IV">III / IV</option><option value="IV">IV</option><option value="IV / V">IV / V</option><option value="IX">IX</option><option value="IX / X">IX / X</option><option value="V">V</option><option value="V / VI">V / VI</option><option value="VI">VI</option><option value="VII">VII</option><option value="VIII">VIII</option></select></div></div><div class="field"><label>Двигун (код)</label><div class="selwrap"><select disabled=""><option value="">— всі —</option><option value="?">?</option><option value="(?)">(?)</option><option value="1Z/AHU (?)">1Z/AHU (?)</option><option value="20T2N (Rover)">20T2N (Rover)</option><option value="4D56">4D56</option><option value="4D56 (?)">4D56 (?)</option><option value="4EE2 (Isuzu)">4EE2 (Isuzu)</option><option value="AAT">AAT</option><option value="AAT (1T)">AAT (1T)</option><option value="AAZ (?)">AAZ (?)</option><option value="AEL">AEL</option><option value="AFB">AFB</option><option value="AFN (?)">AFN (?)</option><option value="AFN/AVF (?)">AFN/AVF (?)</option><option value="AGR/ALH (?)">AGR/ALH (?)</option><option value="AHU/AFN (?)">AHU/AFN (?)</option><option value="AJM/ATJ (?)">AJM/ATJ (?)</option><option value="AKE">AKE</option><option value="AKE/BAU/AYM/BFC">AKE/BAU/AYM/BFC</option><option value="AKF">AKF</option><option value="AKN">AKN</option><option value="AMF / BHC">AMF / BHC</option><option value="ASB/BNG (?)">ASB/BNG (?)</option><option value="ASE">ASE</option><option value="ATD/ASZ (?)">ATD/ASZ (?)</option><option value="AVB/AWX (?)">AVB/AWX (?)</option><option value="AYZ">AYZ</option><option value="BCZ/BDG (?)">BCZ/BDG (?)</option><option value="BDG">BDG</option><option value="BDG/BFC (?)">BDG/BFC (?)</option><option value="BKD/AZV (?)">BKD/AZV (?)</option><option value="BKN/ASB (?)">BKN/ASB (?)</option><option value="BLB/BRE (?)">BLB/BRE (?)</option><option value="BLS">BLS</option><option value="BMK/ASB (?)">BMK/ASB (?)</option><option value="BPP/BSG">BPP/BSG</option><option value="BTR/CCFC (?)">BTR/CCFC (?)</option><option value="BUG (?)">BUG (?)</option><option value="BUG/BUN (?)">BUG/BUN (?)</option><option value="CAGA/CAHA (?)">CAGA/CAHA (?)</option><option value="CAGB/CAHA (?)">CAGB/CAHA (?)</option><option value="CAHA/CGLA (?)">CAHA/CGLA (?)</option><option value="CAMA/CGKA (?)">CAMA/CGKA (?)</option><option value="CANA/CANB">CANA/CANB</option><option value="CAPA/CCWA (?)">CAPA/CCWA (?)</option><option value="CASA">CASA</option><option value="CATA">CATA</option><option value="CAYB/CAYC">CAYB/CAYC</option><option value="CAYC">CAYC</option><option value="CBAA / CBAB / CBBB">CBAA / CBAB / CBBB</option><option value="CBAB (?)">CBAB (?)</option><option value="CBBB (?)">CBBB (?)</option><option value="CCGA">CCGA</option><option value="CCWA (?)">CCWA (?)</option><option value="CCWA/CDUD (?)">CCWA/CDUD (?)</option><option value="CCWB (?)">CCWB (?)</option><option value="CDSB (?)">CDSB (?)</option><option value="CDTA/CTBA (?)">CDTA/CTBA (?)</option><option value="CDUC (?)">CDUC (?)</option><option value="CDUC/CDUD (?)">CDUC/CDUD (?)</option><option value="CDUC/CGQB (?)">CDUC/CGQB (?)</option><option value="CDUC/CLAB (?)">CDUC/CLAB (?)</option><option value="CDYA/CDYC (?)">CDYA/CDYC (?)</option><option value="CFFA/CFGC (?)">CFFA/CFGC (?)</option><option value="CFGB (?)">CFGB (?)</option><option value="CGKA/CAMA (?)">CGKA/CAMA (?)</option><option value="CGLB (?)">CGLB (?)</option><option value="CGLB/CNHC (?)">CGLB/CNHC (?)</option><option value="CGLC (?)">CGLC (?)</option><option value="CGLC/CJCA (?)">CGLC/CJCA (?)</option><option value="CGLC/CNHA (?)">CGLC/CNHA (?)</option><option value="CGQB">CGQB</option><option value="CJGD/CLZB (?)">CJGD/CLZB (?)</option><option value="CKVB (?)">CKVB (?)</option><option value="CLAB (?)">CLAB (?)</option><option value="CLHA/CRKB (?)">CLHA/CRKB (?)</option><option value="CNHC (?)">CNHC (?)</option><option value="CNRB">CNRB</option><option value="CRBC/CRLB (?)">CRBC/CRLB (?)</option><option value="CRKB (?)">CRKB (?)</option><option value="CRTB/DDVC (?)">CRTB/DDVC (?)</option><option value="CRTC (?)">CRTC (?)</option><option value="CRTC/CDUD (?)">CRTC/CDUD (?)</option><option value="CRTC/CVMD (?)">CRTC/CVMD (?)</option><option value="CRTC/CVUB (?)">CRTC/CVUB (?)</option><option value="CRTD (?)">CRTD (?)</option><option value="CRTD/CVUB (?)">CRTD/CVUB (?)</option><option value="CSUB (?)">CSUB (?)</option><option value="CUNA">CUNA</option><option value="CUSB">CUSB</option><option value="CVKB/CJCD (?)">CVKB/CJCD (?)</option><option value="CVUB (?)">CVUB (?)</option><option value="CVUC/DDVB (?)">CVUC/DDVB (?)</option><option value="CXMA">CXMA</option><option value="CZAC">CZAC</option><option value="CZAC/DFPA (?)">CZAC/DFPA (?)</option><option value="D3FA">D3FA</option><option value="D4BF/D4BH (?)">D4BF/D4BH (?)</option><option value="D4BH (?)">D4BH (?)</option><option value="D4CB">D4CB</option><option value="D4CB-A">D4CB-A</option><option value="D4DB">D4DB</option><option value="D4EA">D4EA</option><option value="D4EA (?)">D4EA (?)</option><option value="D4EB">D4EB</option><option value="D4FA">D4FA</option><option value="D4FA (?)">D4FA (?)</option><option value="D4FB">D4FB</option><option value="D4FB / D4FE">D4FB / D4FE</option><option value="D4FC">D4FC</option><option value="D4FD">D4FD</option><option value="D4FE">D4FE</option><option value="D4HA">D4HA</option><option value="D4HB">D4HB</option><option value="D4HB (Smartstream)">D4HB (Smartstream)</option><option value="D4HE">D4HE</option><option value="DDVA (?)">DDVA (?)</option><option value="DDVA/CRTD (?)">DDVA/CRTD (?)</option><option value="DDVA/DTBA (?)">DDVA/DTBA (?)</option><option value="DDVC (?)">DDVC (?)</option><option value="DDVF">DDVF</option><option value="DDVF (?)">DDVF (?)</option><option value="DDYA/CRKB (?)">DDYA/CRKB (?)</option><option value="DEHA">DEHA</option><option value="DEJA (?)">DEJA (?)</option><option value="DETA (?)">DETA (?)</option><option value="DFGA (?)">DFGA (?)</option><option value="DFGA/CRMB (?)">DFGA/CRMB (?)</option><option value="DFHA (?)">DFHA (?)</option><option value="DGTE (?)">DGTE (?)</option><option value="DHVB">DHVB</option><option value="DPXA">DPXA</option><option value="DPXA (?)">DPXA (?)</option><option value="DTTA/DTUA (?)">DTTA/DTUA (?)</option><option value="J3">J3</option><option value="JK/SB (?)">JK/SB (?)</option><option value="N15A">N15A</option><option value="N16A">N16A</option><option value="N22A">N22A</option><option value="N22B">N22B</option><option value="S-двигун (?)">S-двигун (?)</option><option value="SB (?)">SB (?)</option></select></div></div><div class="field"><label>Код кузова</label><div class="selwrap"><select disabled=""><option value="">— всі —</option><option value="4G">4G</option><option value="4K">4K</option><option value="4L">4L</option><option value="4M">4M</option><option value="4M (F1)">4M (F1)</option><option value="8J">8J</option><option value="8L">8L</option><option value="8P">8P</option><option value="8P / 8V">8P / 8V</option><option value="8R">8R</option><option value="8R / FY">8R / FY</option><option value="8S">8S</option><option value="8T">8T</option><option value="8U">8U</option><option value="8V">8V</option><option value="8X">8X</option><option value="8Y">8Y</option><option value="8Z">8Z</option><option value="A1">A1</option><option value="AD">AD</option><option value="B3">B3</option><option value="B4">B4</option><option value="B5">B5</option><option value="B6">B6</option><option value="B7">B7</option><option value="B8">B8</option><option value="B9">B9</option><option value="BE">BE</option><option value="C3">C3</option><option value="C4">C4</option><option value="C4 / C5">C4 / C5</option><option value="C5">C5</option><option value="C6">C6</option><option value="C6 (?)">C6 (?)</option><option value="C7">C7</option><option value="C7 / C8">C7 / C8</option><option value="C8">C8</option><option value="CE/CG/CH">CE/CG/CH</option><option value="CL/CN">CL/CN</option><option value="CM">CM</option><option value="CU/CW">CU/CW</option><option value="D2">D2</option><option value="D3">D3</option><option value="D4">D4</option><option value="D5">D5</option><option value="DM">DM</option><option value="EN">EN</option><option value="EP">EP</option><option value="F3">F3</option><option value="F5">F5</option><option value="FC">FC</option><option value="FD">FD</option><option value="FD / GD">FD / GD</option><option value="FK / FC">FK / FC</option><option value="FK / FN">FK / FN</option><option value="FN">FN</option><option value="FO">FO</option><option value="FY">FY</option><option value="GA">GA</option><option value="Galloper I">Galloper I</option><option value="GB">GB</option><option value="GD">GD</option><option value="GM">GM</option><option value="H-100">H-100</option><option value="H350">H350</option><option value="HD35">HD35</option><option value="HD78">HD78</option><option value="HP">HP</option><option value="JC">JC</option><option value="JM">JM</option><option value="LC">LC</option><option value="LM">LM</option><option value="LM / TL">LM / TL</option><option value="LX2">LX2</option><option value="MB">MB</option><option value="MC">MC</option><option value="MD">MD</option><option value="NF">NF</option><option value="NX4">NX4</option><option value="OS">OS</option><option value="PA">PA</option><option value="PB">PB</option><option value="PD">PD</option><option value="RB">RB</option><option value="RD">RD</option><option value="RE">RE</option><option value="RE / RM">RE / RM</option><option value="RM">RM</option><option value="RU">RU</option><option value="SM">SM</option><option value="TB">TB</option><option value="TG">TG</option><option value="TL">TL</option><option value="TM">TM</option><option value="TQ">TQ</option><option value="US4">US4</option><option value="VF">VF</option><option value="XD">XD</option></select></div></div></div>
+  </div>
+
+  <div class="res-head">
+    <div class="count" id="resCount">База: <b>237</b> модифікацій · <b>3</b> марки</div>
+  </div>
+  <div class="cards" id="results"><div class="state"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"></path><path d="M5 13h14v5H5z"></path><circle cx="7.5" cy="18" r="1.6"></circle><circle cx="16.5" cy="18" r="1.6"></circle></svg><h3>Оберіть автомобіль</h3><p>Виберіть марку авто, далі — модель або інший параметр підбору. Або скористайтесь пошуком за кодом двигуна чи номером форсунки.</p></div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="spec-pop" id="specPop"></div>
+
+<!-- ЕКРАН ВХОДУ -->
+<div class="login-scrim hidden" id="loginScrim">
+  <div class="login-card">
+    <div class="lg-brand">
+      <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#f6a623" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5v6"></path><path d="M9 8.5h6l-1 3.5H10z"></path><path d="M12 12v4"></path><path d="M9.5 16h5l-.6 5h-3.8z"></path></svg></div>
+      <div><div class="name" style="font-weight:700">Дизель-Підбір</div><div class="sub" style="font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase">форсунки · насоси</div></div>
+    </div>
+    <h1>Вхід</h1>
+    <p class="lead">Увійдіть, щоб користуватися підбором.</p>
+    <label for="lg_email">Пошта</label>
+    <input id="lg_email" type="email" autocomplete="email" placeholder="you@example.com">
+    <div id="lg_pwWrap">
+      <label for="lg_pw">Пароль</label>
+      <div class="pw-field">
+        <input id="lg_pw" type="password" autocomplete="current-password" placeholder="••••••••">
+        <button type="button" class="pw-toggle" id="lg_pwToggle" aria-label="Показати пароль" title="Показати пароль">
+          <svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M10.7 6.2A9.8 9.8 0 0 1 12 5c6.5 0 10 7 10 7a15.4 15.4 0 0 1-3.6 4.2M6.3 6.4A15.3 15.3 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 4.3-1M3 3l18 18M9.9 9.9a3 3 0 0 0 4.2 4.2"></path></svg>
+        </button>
+      </div>
+    </div>
+    <div class="login-row">
+      <button class="btn-primary" id="lg_in">Увійти</button>
+      <button class="btn-outline" id="lg_up">Реєстрація</button>
+    </div>
+    <button class="linkbtn" id="lg_magic">Увійти без пароля (лист із посиланням)</button>
+    <button class="linkbtn" id="lg_forgot" style="display:block">Забули пароль?</button>
+    <div id="lg_msg" class="lg-msg"></div>
+  </div>
+</div>
+
+<!-- ЕКРАН «НОВИЙ ПАРОЛЬ» (після переходу за посиланням із листа) -->
+<div class="login-scrim hidden" id="resetScrim">
+  <div class="login-card">
+    <div class="lg-brand">
+      <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#f6a623" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5v6"></path><path d="M9 8.5h6l-1 3.5H10z"></path><path d="M12 12v4"></path><path d="M9.5 16h5l-.6 5h-3.8z"></path></svg></div>
+      <div><div class="name" style="font-weight:700">Дизель-Підбір</div><div class="sub" style="font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase">форсунки · насоси</div></div>
+    </div>
+    <h1>Новий пароль</h1>
+    <p class="lead">Введіть новий пароль для входу.</p>
+    <label for="rs_pw">Новий пароль</label>
+    <div class="pw-field">
+      <input id="rs_pw" type="password" autocomplete="new-password" placeholder="мінімум 6 символів">
+      <button type="button" class="pw-toggle" id="rs_pwToggle" aria-label="Показати пароль" title="Показати пароль">
+        <svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M10.7 6.2A9.8 9.8 0 0 1 12 5c6.5 0 10 7 10 7a15.4 15.4 0 0 1-3.6 4.2M6.3 6.4A15.3 15.3 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 4.3-1M3 3l18 18M9.9 9.9a3 3 0 0 0 4.2 4.2"></path></svg>
+      </button>
+    </div>
+    <div class="login-row"><button class="btn-primary" id="rs_save" style="flex:1">Зберегти пароль</button></div>
+    <div id="rs_msg" class="lg-msg"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ── КОНФІГ (Supabase → Project Settings → API) ─────────────────────────── */
+const SUPABASE_URL  = "https://fxqboawaiwgltvxxykan.supabase.co";
+const SUPABASE_ANON = "sb_publishable_wkLM5QJS5-KsDuEeKHR-aQ_oKAWZYIj";
+/* ───────────────────────────────────────────────────────────────────────── */
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+const $=s=>document.querySelector(s);
+const el=(t,c)=>{const e=document.createElement(t);if(c)e.className=c;return e;};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm=s=>String(s||'').replace(/\s+/g,' ').trim();
+const NOW_YEAR=new Date().getFullYear();
+function yrRange(str){
+  const s=String(str||''); const y=(s.match(/\d{4}/g)||[]).map(Number);
+  if(!y.length) return null;
+  let start=Math.min(...y), end=Math.max(...y);
+  if(y.length===1) end = /\d{4}\s*[-–—]/.test(s) ? NOW_YEAR : start;
+  return [start,end];
+}
+
+const SELECT_KEYS=['brand','model','volume','generation','engine','body'];
+const FILTERS=[
+  {key:'brand',label:'Марка авто',type:'select',group:'primary',count:true},
+  {key:'model',label:'Модель',type:'select',group:'primary',count:true},
+  {key:'volume',label:"Об'єм",type:'select',group:'secondary'},
+  {key:'years',label:'Роки випуску',type:'input',group:'secondary',placeholder:'напр. 2018 або 2015-2020'},
+  {key:'generation',label:'Покоління',type:'select',group:'secondary'},
+  {key:'engine',label:'Двигун (код)',type:'select',group:'secondary'},
+  {key:'body',label:'Код кузова',type:'select',group:'secondary'},
+];
+const SPEC_LABELS=['CRI ---','F00VC','Расп DLLA … P …','Расп 0433171…','Гайка','шайба','аналог','Відновлена'];
+const SPEC_FIELDS=['cri_type','fov_code','nozzle_dlla','nozzle_0433','nut','washer','analog','oe_number'];
+const MFR_COLORS={'CDI':'#f6a623','Delphi':'#43b7c9','Denso':'#e0574d','Siemens':'#9b7ede',"P'ezzo":'#57c78a','Forcam':'#d98cae','TDI':'#c8a24a','Насос-форсунки':'#7d97b5','Форкамерна':'#7d97b5'};
+const mfrColor=m=>MFR_COLORS[m]||'#8a97a8';
+
+let state={brand:'',model:'',volume:'',years:'',generation:'',engine:'',body:'',q:''};
+let optionsCache={};            // key -> [[value,cnt],...]
+let brandsMeta={total:0,count:0};
+let specStore={};               // code -> spec object
+let resultState={mode:'inactive'};
+
+/* ── Data access ───────────────────────────────────────────────────────── */
+async function fetchOptions(key){
+  const higher=SELECT_KEYS.slice(0,SELECT_KEYS.indexOf(key));
+  const args={p_field:key,p_brand:null,p_model:null,p_volume:null,p_generation:null,p_engine:null};
+  higher.forEach(f=>{ if(state[f]) args['p_'+f]=state[f]; });
+  const {data,error}=await sb.rpc('vehicle_options',args);
+  if(error){console.warn('options',key,error.message);return [];}
+  return (data||[]).map(r=>[r.value,r.cnt]);
+}
+async function refreshOptions(){
+  // brand options не залежать від інших; решта — від вищих полів
+  const keys=['model','volume','generation','engine','body'];
+  const res=await Promise.all(keys.map(fetchOptions));
+  keys.forEach((k,i)=>optionsCache[k]=res[i]);
+}
+function extraFilterActive(){return !!(state.model||state.volume||state.years||state.generation||state.engine||state.body);}
+function anyFilter(){return SELECT_KEYS.some(k=>state[k])||!!state.years||!!state.q;}
+
+async function refreshResults(){
+  const active=extraFilterActive()||!!state.q;
+  if(!active){resultState={mode:'inactive'};return;}
+  let p_year=null,p_year_to=null;
+  if(state.years){const r=yrRange(state.years); if(r){p_year=r[0];p_year_to=r[1];}}
+  const args={p_q:state.q||null,p_brand:state.brand||null,p_model:state.model||null,
+    p_volume:state.volume||null,p_generation:state.generation||null,p_engine:state.engine||null,
+    p_body:state.body||null,p_year:p_year,p_year_to:p_year_to,p_limit:200};
+  const {data,error}=await sb.rpc('search_vehicles',args);
+  if(error){
+    const m=error.message||'';
+    if(m.includes('query_brand_only')) resultState={mode:'brandonly'};
+    else if(m.includes('query_too_broad')) resultState={mode:'inactive'};
+    else resultState={mode:'error',msg:m};
+    return;
+  }
+  (data||[]).forEach(r=>{ if(r.spec&&r.spec.code) specStore[r.spec.code]=r.spec; });
+  resultState={mode:'ok',rows:data||[]};
+}
+
+/* ── Filters render ────────────────────────────────────────────────────── */
+function setFilterAndReload(key,val){
+  state[key]=val;
+  const idx=SELECT_KEYS.indexOf(key);
+  SELECT_KEYS.slice(idx+1).forEach(k=>state[k]='');
+  if(key==='brand'||key==='model') state.years='';
+  reloadAll();
+}
+function updateResetBtn(){$('#resetFilters').classList.toggle('show',anyFilter());}
+
+function renderFilters(){
+  const locked=!state.brand;
+  const P=$('#filtersPrimary');P.innerHTML='';
+  const S=$('#filtersSecondary');S.innerHTML='';
+  FILTERS.forEach(f=>{
+    const host=f.group==='primary'?P:S;
+    const field=el('div','field');
+    const lab=el('label');lab.textContent=f.label;field.appendChild(lab);
+    let disabled=false;
+    if(f.key==='model')disabled=!state.brand;
+    if(f.group==='secondary')disabled=locked;
+    if(f.type==='input'){
+      const inp=el('input','filterin');inp.type='text';inp.placeholder=f.placeholder||'';
+      inp.value=state[f.key]||'';inp.disabled=disabled;
+      if(state[f.key])inp.classList.add('set');
+      inp.addEventListener('input',()=>{state[f.key]=norm(inp.value);inp.classList.toggle('set',!!state[f.key]);
+        debouncedResults();updateResetBtn();});
+      field.appendChild(inp);
+    }else{
+      const sw=el('div','selwrap');const sel=el('select');
+      if(state[f.key])sel.classList.add('set');
+      sel.disabled=disabled;
+      const opts=optionsCache[f.key]||[];
+      const ph=el('option');ph.value='';ph.textContent=f.count?`— всі (${opts.length}) —`:'— всі —';sel.appendChild(ph);
+      opts.forEach(([v,n])=>{const o=el('option');o.value=v;o.textContent=f.count?`${v}  (${n})`:v;if(state[f.key]===v)o.selected=true;sel.appendChild(o);});
+      sel.onchange=()=>setFilterAndReload(f.key,sel.value);
+      sw.appendChild(sel);field.appendChild(sw);
+    }
+    host.appendChild(field);
+  });
+  S.classList.toggle('locked',locked);
+  $('#lockHint').classList.toggle('show',locked);
+  updateResetBtn();
+}
+
+/* ── Results render ────────────────────────────────────────────────────── */
+function readoutMfr(r){
+  if(!r.manufacturer) return '<span class="v empty">—</span>';
+  return `<span class="mbadge"><span class="sw" style="background:${mfrColor(r.manufacturer)}"></span>${esc(r.manufacturer)}</span>`;
+}
+const CPI='<svg class="cpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+function readoutPart(val){
+  if(!val) return '<span class="v empty">—</span>';
+  return `<button class="copy" data-copy="${esc(val)}"><span class="v">${esc(val)}</span>${CPI}</button>`;
+}
+function readoutInjector(r){
+  if(!r.injector) return '<span class="v empty">—</span>';
+  const copyBtn=`<button class="copy" data-copy="${esc(r.injector)}"><span class="v">${esc(r.injector)}</span>${CPI}</button>`;
+  if(r.spec&&r.spec.code){
+    const code=r.spec.code;
+    return `<span class="injwrap" data-spec="${esc(code)}">${copyBtn}<button class="specbtn" data-spec="${esc(code)}" aria-label="Характеристики форсунки">i</button></span>`;
+  }
+  return copyBtn;
+}
+function specHtml(code){
+  const spec=specStore[code]||{};
+  const rows=SPEC_LABELS.map((lab,i)=>{
+    const v=spec[SPEC_FIELDS[i]]||'';
+    return `<div class="sp-row"><span class="sp-k">${esc(lab)}</span><span class="sp-v${v?'':' dash'}">${esc(v||'—')}</span></div>`;
+  }).join('');
+  return `<div class="sp-title">0445110${esc(code)}</div>${rows}`;
+}
+const specPop=$('#specPop');
+function showSpec(code,anchor){
+  specPop.dataset.code=code;specPop.innerHTML=specHtml(code);specPop.classList.add('show');
+  const r=anchor.getBoundingClientRect();
+  const pw=specPop.offsetWidth,ph=specPop.offsetHeight,vw=innerWidth,vh=innerHeight,m=8;
+  let left=r.left; if(left+pw>vw-m)left=vw-pw-m; if(left<m)left=m;
+  let top=r.bottom+6; if(top+ph>vh-m)top=r.top-ph-6; if(top<m)top=m;
+  specPop.style.left=left+'px';specPop.style.top=top+'px';
+}
+function hideSpec(){specPop.classList.remove('show');}
+let specPinned=false;
+document.addEventListener('mouseover',e=>{const w=e.target.closest('.injwrap');
+  if(w&&!specPinned){if(specPop.classList.contains('show')&&specPop.dataset.code===w.dataset.spec)return;showSpec(w.dataset.spec,w);}});
+document.addEventListener('mouseout',e=>{const w=e.target.closest('.injwrap');
+  if(w&&!specPinned){const to=e.relatedTarget;if(!to||!to.closest||!to.closest('#specPop'))hideSpec();}});
+document.addEventListener('click',e=>{const b=e.target.closest('.specbtn');
+  if(b){e.stopPropagation();specPinned=true;showSpec(b.dataset.spec,b.closest('.injwrap'));return;}
+  if(specPinned&&!e.target.closest('#specPop')){specPinned=false;hideSpec();}});
+addEventListener('scroll',()=>{if(!specPinned)hideSpec();},true);
+
+function plural(n,one,few,many){const m10=n%10,m100=n%100;
+  if(m10===1&&m100!==11)return one; if(m10>=2&&m10<=4&&(m100<10||m100>=20))return few; return many;}
+
+function renderResults(){
+  const box=$('#results');box.innerHTML='';
+  const cnt=$('#resCount');
+  if(resultState.mode==='inactive'){
+    const brandChosen=!!state.brand;
+    cnt.innerHTML=brandChosen?`Марку обрано — додайте параметр`
+      :`База: <b>${brandsMeta.total}</b> модифікацій · <b>${brandsMeta.count}</b> марки`;
+    const body=brandChosen
+      ?`<h3>Додайте ще один параметр</h3><p>Марку «${esc(state.brand)}» обрано. Виберіть модель, об'єм, роки, покоління, двигун або кузов — і з'являться результати. За однією маркою список не показується.</p>`
+      :`<h3>Оберіть автомобіль</h3><p>Виберіть марку авто, далі — модель або інший параметр підбору. Або скористайтесь пошуком за кодом двигуна чи номером форсунки.</p>`;
+    box.innerHTML=`<div class="state"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M5 13h14v5H5z"/><circle cx="7.5" cy="18" r="1.6"/><circle cx="16.5" cy="18" r="1.6"/></svg>${body}</div>`;
+    return;
+  }
+  if(resultState.mode==='brandonly'){
+    cnt.innerHTML=`Уточніть запит`;
+    box.innerHTML=`<div class="state"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg><h3>Додайте модель до пошуку</h3><p>Пошук лише за маркою вимкнено. Введіть модель або її частину — наприклад «A4», «Tucson», код двигуна чи номер форсунки.</p></div>`;
+    return;
+  }
+  if(resultState.mode==='error'){
+    cnt.innerHTML=`Помилка`;
+    box.innerHTML=`<div class="state"><h3>Не вдалося виконати пошук</h3><p>${esc(resultState.msg)}</p></div>`;
+    return;
+  }
+  const rows=resultState.rows;
+  cnt.innerHTML=rows.length?`Знайдено <b class="amber">${rows.length}</b> ${plural(rows.length,'модифікацію','модифікації','модифікацій')}`:`Нічого не знайдено`;
+  if(rows.length===0){
+    box.innerHTML=`<div class="state"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/><path d="M8 11h6"/></svg><h3>Немає збігів</h3><p>Спробуйте прибрати частину фільтрів або уточнити запит.</p></div>`;
+    return;
+  }
+  rows.forEach(r=>{
+    const card=el('div','card');const sp=[];
+    if(r.generation)sp.push(`<span class="card-specs">${esc(r.generation)}</span>`);
+    if(r.volume)sp.push(`<span class="card-specs">${esc(r.volume)}</span>`);
+    if(r.years)sp.push(`<span class="spec-year">${esc(r.years)}</span>`);
+    if(r.engine)sp.push(`<span class="spec-code">${esc(r.engine)}</span>`);
+    if(r.body)sp.push(`<span class="spec-code">${esc(r.body)}</span>`);
+    const specsHtml=sp.join(' ');
+    const vinChip=r.vin?`<button class="chip vin" data-copy="${esc(r.vin)}" title="Копіювати VIN"><span class="chip-k">VIN</span>${esc(r.vin)}${CPI}</button>`:'';
+    card.innerHTML=`
+      <div class="card-top">
+        <span class="card-desc"><span class="card-title">${esc(r.model||r.brand)}</span>${specsHtml?' '+specsHtml:''}</span>
+        ${vinChip}
+      </div>
+      <div class="readouts">
+        <div class="ro inj"><div class="k"><span class="dot"></span>Форсунка</div>${readoutInjector(r)}</div>
+        <div class="ro pmp"><div class="k"><span class="dot"></span>Насос</div>${readoutPart(r.pump)}</div>
+        <div class="ro mfr"><div class="k">Виробник</div><div class="v" style="font-family:var(--ui)">${readoutMfr(r)}</div></div>
+      </div>`;
+    box.appendChild(card);
+  });
+}
+
+/* ── Orchestration ─────────────────────────────────────────────────────── */
+let _busy=false;
+async function reloadAll(){
+  _busy=true;
+  await refreshOptions();
+  await refreshResults();
+  renderFilters();renderResults();updateResetBtn();syncSearchUI();
+  _busy=false;
+}
+let _t;
+function debouncedResults(){clearTimeout(_t);_t=setTimeout(async()=>{
+  await refreshResults();renderResults();updateResetBtn();
+},260);}
+
+function syncSearchUI(){$('#searchWrap').classList.toggle('has-val',!!state.q);}
+/* захист від автозаповнення пошти браузером: поле стає редагованим лише на фокус */
+(function(){const gs=$('#globalSearch');gs.readOnly=true;
+  const unlock=()=>gs.removeAttribute('readonly');
+  gs.addEventListener('focus',unlock);gs.addEventListener('pointerdown',unlock);})();
+$('#globalSearch').addEventListener('input',e=>{state.q=norm(e.target.value);syncSearchUI();debouncedResults();});
+$('#searchClear').addEventListener('click',()=>{state.q='';$('#globalSearch').value='';syncSearchUI();debouncedResults();$('#globalSearch').focus();});
+$('#resetFilters').addEventListener('click',()=>{['brand','model','volume','years','generation','engine','body'].forEach(k=>state[k]='');state.q=state.q;reloadAll();});
+
+/* ── Copy + toast ──────────────────────────────────────────────────────── */
+document.addEventListener('click',e=>{const b=e.target.closest('[data-copy]');if(!b)return;copyText(b.dataset.copy);});
+function copyText(txt){const done=()=>toast(`Скопійовано <span class="mono">${esc(txt)}</span>`);
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(done).catch(()=>fallbackCopy(txt,done));
+  else fallbackCopy(txt,done);}
+function fallbackCopy(txt,done){const ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';
+  document.body.appendChild(ta);ta.select();try{document.execCommand('copy');done();}catch(e){}document.body.removeChild(ta);}
+let toastT;
+function toast(html){const t=$('#toast');
+  t.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg><span>${html}</span>`;
+  t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),1900);}
+
+/* ── Auth ──────────────────────────────────────────────────────────────── */
+let magicMode=false;
+function bindPwToggle(btnId,inpId){
+  $('#'+btnId).onclick=()=>{
+    const inp=$('#'+inpId), btn=$('#'+btnId);
+    const show=inp.type==='password';
+    inp.type=show?'text':'password';
+    btn.querySelector('.eye').style.display=show?'none':'';
+    btn.querySelector('.eye-off').style.display=show?'':'none';
+    btn.setAttribute('aria-label',show?'Приховати пароль':'Показати пароль');
+    btn.title=show?'Приховати пароль':'Показати пароль';
+  };
+}
+bindPwToggle('lg_pwToggle','lg_pw');
+bindPwToggle('rs_pwToggle','rs_pw');
+function lgMsg(text,ok){const m=$('#lg_msg');m.className='lg-msg '+(ok?'ok':'err');m.textContent=text;}
+function lgClear(){const m=$('#lg_msg');m.className='lg-msg';m.textContent='';}
+$('#lg_magic').onclick=()=>{magicMode=!magicMode;
+  $('#lg_pwWrap').classList.toggle('hidden',magicMode);
+  $('#lg_up').classList.toggle('hidden',magicMode);
+  $('#lg_in').textContent=magicMode?'Надіслати посилання':'Увійти';
+  $('#lg_magic').textContent=magicMode?'Увійти з паролем':'Увійти без пароля (лист із посиланням)';};
+$('#lg_in').onclick=async()=>{lgClear();const email=$('#lg_email').value.trim();
+  if(!email){lgMsg('Вкажіть пошту.');return;}
+  if(magicMode){const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.href}});
+    error?lgMsg(error.message):lgMsg('Перевірте пошту — надіслали посилання для входу.',true);return;}
+  const {error}=await sb.auth.signInWithPassword({email,password:$('#lg_pw').value});
+  if(error)lgMsg(error.message.includes('Invalid')?'Невірна пошта або пароль.':error.message);};
+$('#lg_up').onclick=async()=>{lgClear();const email=$('#lg_email').value.trim(),password=$('#lg_pw').value;
+  if(!email||!password){lgMsg('Вкажіть пошту й пароль.');return;}
+  const {error}=await sb.auth.signUp({email,password,options:{emailRedirectTo:location.href}});
+  error?lgMsg(error.message):lgMsg('Готово. Якщо ввімкнено підтвердження пошти — перейдіть за посиланням у листі, потім увійдіть.',true);};
+$('#lg_forgot').onclick=async()=>{lgClear();const email=$('#lg_email').value.trim();
+  if(!email){lgMsg('Введіть свою пошту у поле вище, тоді натисніть «Забули пароль?».');return;}
+  const redirectTo=location.origin+location.pathname;
+  const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo});
+  error?lgMsg(error.message):lgMsg('Лист для скидання пароля надіслано. Відкрийте його й перейдіть за посиланням.',true);};
+$('#signout').onclick=async()=>{await sb.auth.signOut();};
+
+/* ── Скидання пароля (екран «Новий пароль») ─────────────────────────────── */
+let recoveryMode=false;
+function rsMsg(text,ok){const m=$('#rs_msg');m.className='lg-msg '+(ok?'ok':'err');m.textContent=text;}
+function showReset(){recoveryMode=true;$('#loginScrim').classList.add('hidden');$('#resetScrim').classList.remove('hidden');}
+$('#rs_save').onclick=async()=>{
+  const pw=$('#rs_pw').value;
+  if(!pw||pw.length<6){rsMsg('Пароль має містити щонайменше 6 символів.');return;}
+  const {error}=await sb.auth.updateUser({password:pw});
+  if(error){rsMsg(error.message);return;}
+  recoveryMode=false;
+  $('#resetScrim').classList.add('hidden');
+  // прибрати recovery-токен з адреси й зайти у застосунок
+  history.replaceState(null,'',location.origin+location.pathname);
+  const {data}=await sb.auth.getSession();
+  if(data.session){toast('Пароль змінено');onLogin(data.session);}
+};
+
+async function onLogin(session){
+  $('#loginScrim').classList.add('hidden');
+  $('#acct').innerHTML=`<span class="em">${esc(session.user.email||'')}</span>`;
+  // прибрати можливе автозаповнення пошти у полі пошуку
+  const gs=$('#globalSearch');state.q='';gs.value='';gs.readOnly=true;
+  setTimeout(()=>{if(!state.q)gs.value='';},350);
+  // первинне завантаження: марки + мета
+  optionsCache.brand=await fetchOptions('brand');
+  brandsMeta.total=optionsCache.brand.reduce((s,[,n])=>s+Number(n),0);
+  brandsMeta.count=optionsCache.brand.length;
+  await reloadAll();
+}
+function onLogout(){
+  $('#loginScrim').classList.remove('hidden');
+  $('#acct').innerHTML='';
+  state={brand:'',model:'',volume:'',years:'',generation:'',engine:'',body:'',q:''};
+  $('#globalSearch').value='';
+}
+// чи прийшли ми за посиланням «скидання пароля»?
+const _hash=new URLSearchParams(location.hash.slice(1));
+const _isRecovery=_hash.get('type')==='recovery' || location.hash.includes('type=recovery');
+
+sb.auth.onAuthStateChange((event,session)=>{
+  if(event==='PASSWORD_RECOVERY'){showReset();return;}
+  if(recoveryMode)return;                 // поки на екрані нового пароля — не заходимо в застосунок
+  session?onLogin(session):onLogout();
+});
+
+if(_isRecovery){
+  showReset();                            // одразу показуємо екран нового пароля, без «мигання» застосунку
+}else{
+  sb.auth.getSession().then(({data})=>{data.session?onLogin(data.session):onLogout();});
+}
+
+/* ── PWA: service worker + кнопка «Встановити» ──────────────────────────── */
+if('serviceWorker' in navigator){
+  addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js').catch(()=>{});});
+}
+let deferredPrompt=null;
+addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('#installBtn').style.display='inline-flex';});
+$('#installBtn').onclick=async()=>{
+  if(!deferredPrompt)return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt=null;$('#installBtn').style.display='none';
+};
+addEventListener('appinstalled',()=>{deferredPrompt=null;$('#installBtn').style.display='none';});
+</script>
+</body></html>
