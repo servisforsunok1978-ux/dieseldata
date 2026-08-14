@@ -621,7 +621,7 @@ function specHtml(code){
     const v=spec[SPEC_FIELDS[i]]||'';
     return `<div class="sp-row"><span class="sp-k">${esc(lab)}</span><span class="sp-v${v?'':' dash'}">${esc(v||'—')}</span></div>`;
   }).join('');
-  return `<div class="sp-title">0445110${esc(code)}</div>${rows}`;
+  return `<div class="sp-title">${esc(code)}</div>${rows}`;
 }
 const specPop=$('#specPop');
 function showSpec(code,anchor){
