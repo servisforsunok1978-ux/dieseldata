@@ -814,7 +814,7 @@ if(_isRecovery){
 
 /* ── PWA: service worker + кнопка «Встановити» ──────────────────────────── */
 if('serviceWorker' in navigator){
-  addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js').catch(()=>{});});
+  addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'}).catch(()=>{});});
 }
 let deferredPrompt=null;
 addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('#installBtn').style.display='inline-flex';});
