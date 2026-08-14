@@ -419,8 +419,9 @@ select.set{border-color:#41506680}
     </div>
     <h1>Вхід</h1>
     <p class="lead">Увійдіть, щоб користуватися підбором.</p>
+    <form id="lgForm" autocomplete="on" onsubmit="return false">
     <label for="lg_email">Пошта</label>
-    <input id="lg_email" type="email" autocomplete="email" placeholder="you@example.com">
+    <input id="lg_email" type="email" autocomplete="username" placeholder="you@example.com">
     <div id="lg_pwWrap">
       <label for="lg_pw">Пароль</label>
       <div class="pw-field">
@@ -431,6 +432,7 @@ select.set{border-color:#41506680}
         </button>
       </div>
     </div>
+    </form>
     <div class="login-row">
       <button class="btn-primary" id="lg_in">Увійти</button>
       <button class="btn-outline" id="lg_up">Реєстрація</button>
@@ -450,6 +452,8 @@ select.set{border-color:#41506680}
     </div>
     <h1>Новий пароль</h1>
     <p class="lead">Введіть новий пароль для входу.</p>
+    <form id="rsForm" autocomplete="on" onsubmit="return false">
+    <input type="text" autocomplete="username" aria-hidden="true" tabindex="-1" style="display:none">
     <label for="rs_pw">Новий пароль</label>
     <div class="pw-field">
       <input id="rs_pw" type="password" autocomplete="new-password" placeholder="мінімум 6 символів">
@@ -458,6 +462,7 @@ select.set{border-color:#41506680}
         <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M10.7 6.2A9.8 9.8 0 0 1 12 5c6.5 0 10 7 10 7a15.4 15.4 0 0 1-3.6 4.2M6.3 6.4A15.3 15.3 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 4.3-1M3 3l18 18M9.9 9.9a3 3 0 0 0 4.2 4.2"></path></svg>
       </button>
     </div>
+    </form>
     <div class="login-row"><button class="btn-primary" id="rs_save" style="flex:1">Зберегти пароль</button></div>
     <div id="rs_msg" class="lg-msg"></div>
   </div>
