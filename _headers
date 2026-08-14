@@ -1,0 +1,11 @@
+# Cloudflare Pages — заголовки відповіді.
+# Сам скрипт Service Worker не кешувати, щоб браузер одразу бачив новий sw.js
+# і застосовував оновлення застосунку.
+/sw.js
+  Cache-Control: no-cache
+
+# HTML завжди перевіряти на сервері (страховка поверх дефолту Pages).
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
