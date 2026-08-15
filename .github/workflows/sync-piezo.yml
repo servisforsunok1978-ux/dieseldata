@@ -1,0 +1,21 @@
+name: sync-piezo
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # щодня 06:00 UTC; GitHub може затримувати запуски
+  workflow_dispatch: {}    # ручний запуск із вкладки Actions
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - run: python scripts/sync_piezo.py
+        env:
+          SHEET_ID: ${{ vars.SHEET_ID }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
