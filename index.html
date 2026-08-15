@@ -172,6 +172,7 @@ select.set{border-color:#41506680}
 .readouts{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line-soft)}
 .ro{background:var(--bg-2);padding:12px 15px;min-width:0}
 .ro .k{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.ro .k.mlbl{text-transform:none;letter-spacing:.04em}
 .ro .k .dot{width:7px;height:7px;border-radius:50%}
 .ro.inj .k .dot{background:var(--amber)}
 .ro.pmp .k .dot{background:var(--teal)}
@@ -786,9 +787,8 @@ function renderResults(){
         ${vinChip}
       </div>
       <div class="readouts">
-        <div class="ro inj"><div class="k"><span class="dot"></span>Форсунка</div>${readoutInjector(r)}</div>
+        <div class="ro inj"><div class="k${r.manufacturer?' mlbl':''}"><span class="dot"></span>${r.manufacturer?esc(r.manufacturer)+' Injector':'Форсунка'}</div>${readoutInjector(r)}</div>
         <div class="ro pmp"><div class="k"><span class="dot"></span>Насос</div>${readoutPart(r.pump)}</div>
-        <div class="ro mfr"><div class="v" style="font-family:var(--ui)">${readoutMfr(r)}</div></div>
       </div>`;
     box.appendChild(card);
   });
