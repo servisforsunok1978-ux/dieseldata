@@ -216,6 +216,7 @@ select.set{border-color:#41506680}
 .spec-pop .sp-k{font-size:11px;color:var(--muted);white-space:nowrap;font-weight:500}
 .spec-pop .sp-v{font-family:var(--mono);font-size:12.5px;color:var(--txt);text-align:right;word-break:break-word}
 .spec-pop .sp-v.dash{color:var(--txt-3);color:#5c6675}
+.spec-pop .sp-v .sp-sub{display:block;color:var(--txt-2);font-size:11.5px;margin-top:2px}
 .vinline b{color:var(--txt-2);font-weight:600;letter-spacing:.1em;text-transform:uppercase;font-size:10.5px}
 .vinline .vv{font-family:var(--mono);color:var(--txt-2)}
 
@@ -501,13 +502,17 @@ const FILTERS=[
 ];
 const SPEC_LABELS=['Type','Valve','Valve Cap','Nozzle type','Nozzle order','Nut','Washer','OEM','OE number'];
 const SPEC_FIELDS=['cri_type','fov_code','valve_cap','nozzle_dlla','nozzle_0433','nut','washer','analog','oe_number'];
+/* Bosch Piezo (bosch_piezo_inj) — попап характеристик, порядок полів заданий власником */
+const PIEZO_LABELS=['Type','Nozzle','Piezo Control Valve','Spacer Plate','Nut','Washer','O-Ring','OEM','OE number'];
+const PIEZO_FIELDS=['type','nozzle','piezo_control_valve','spacer_plate','nut','washer','o_ring','oem_number','oe_number'];
 const MFR_COLORS={'CDI':'#f6a623','Delphi':'#43b7c9','Denso':'#e0574d','Siemens':'#9b7ede',"P'ezzo":'#57c78a','Forcam':'#d98cae','TDI':'#c8a24a','Насос-форсунки':'#7d97b5','Форкамерна':'#7d97b5'};
 const mfrColor=m=>MFR_COLORS[m]||'#8a97a8';
 
 let state={brand:'',model:'',volume:'',years:'',generation:'',engine:'',body:'',q:''};
 let optionsCache={};            // key -> [[value,cnt],...]
 let brandsMeta={total:0,count:0};
-let specStore={};               // code -> spec object
+let specStore={};               // code -> spec object (Bosch Solenoid)
+let piezoStore={};              // 0445-токен -> рядок спеки (Bosch Piezo)
 let resultState={mode:'inactive'};
 
 /* ── Data access ───────────────────────────────────────────────────────── */
@@ -546,6 +551,25 @@ async function refreshResults(){
   }
   (data||[]).forEach(r=>{ if(r.spec&&r.spec.code) specStore[r.spec.code]=r.spec; });
   resultState={mode:'ok',rows:data||[]};
+}
+
+/* Bosch Piezo: одноразове завантаження спек + індекс за 0445-токенами oem_number.
+   Piezo не має FK на vehicles (на відміну від solenoid.spec_code), тож зіставляємо
+   форсунку авто з рядком спеки за спільним номером Bosch (0445115/116/117/118). */
+async function loadPiezo(){
+  const {data,error}=await sb.rpc('piezo_specs');
+  if(error){console.warn('piezo_specs',error.message);return;}
+  piezoStore={};
+  (data||[]).forEach(row=>{
+    String(row.oem_number||'').split(/\s+/).forEach(tok=>{
+      if(/^0445/.test(tok)&&!piezoStore[tok]) piezoStore[tok]=row;
+    });
+  });
+}
+function piezoMatch(injector){
+  const toks=String(injector||'').split(/\s+/);
+  for(const t of toks){ if(/^0445/.test(t)&&piezoStore[t]) return t; }
+  return null;
 }
 
 /* ── Filters render ────────────────────────────────────────────────────── */
@@ -613,6 +637,10 @@ function readoutInjector(r){
     const code=r.spec.code;
     return `<span class="injwrap" data-spec="${esc(code)}">${copyBtn}<button class="specbtn" data-spec="${esc(code)}" aria-label="Характеристики форсунки">i</button></span>`;
   }
+  const ptok=piezoMatch(r.injector);
+  if(ptok){
+    return `<span class="injwrap" data-piezo="${esc(ptok)}">${copyBtn}<button class="specbtn" data-piezo="${esc(ptok)}" aria-label="Характеристики форсунки">i</button></span>`;
+  }
   return copyBtn;
 }
 function specHtml(code){
@@ -623,10 +651,44 @@ function specHtml(code){
   }).join('');
   return `<div class="sp-title">${esc(code)}</div>${rows}`;
 }
+/* washer/o_ring: розмір (15*7*3, 16mm * 1,5mm) виносимо у другий рядок;
+   nut: дужкову частину ((Ø16mm 8-sided) (2 marks)) — у другий рядок.
+   Лише візуальний поділ — самі значення в БД не змінюються. */
+function piezoValHtml(field,v){
+  let main=v, sub=null;
+  if(field==='washer'||field==='o_ring'){
+    const star=v.indexOf('*');                       // розмір містить '*'; номери — ні
+    if(star>0){
+      const before=v.slice(0,star).replace(/\s+$/,'');
+      const sp=before.lastIndexOf(' ');
+      if(sp>0){ main=v.slice(0,sp).trim(); sub=v.slice(sp+1).trim(); }
+    }
+  }else if(field==='nut'){
+    const i=v.indexOf('(');                           // перша дужка
+    if(i>0 && v.slice(0,i).trim()){ main=v.slice(0,i).trim(); sub=v.slice(i).trim(); }
+  }
+  return esc(main)+(sub?`<br><span class="sp-sub">${esc(sub)}</span>`:'');
+}
+function piezoHtml(tok){
+  const spec=piezoStore[tok]||{};
+  const rows=PIEZO_LABELS.map((lab,i)=>{
+    const f=PIEZO_FIELDS[i], v=spec[f]||'';
+    const vhtml=v?piezoValHtml(f,v):'—';
+    return `<div class="sp-row"><span class="sp-k">${esc(lab)}</span><span class="sp-v${v?'':' dash'}">${vhtml}</span></div>`;
+  }).join('');
+  return `<div class="sp-title">${esc(tok)}</div>${rows}`;
+}
+/* контент попапа за атрибутами обгортки: data-spec → solenoid, data-piezo → piezo */
+function popupFor(w){
+  if(w.dataset.spec) return {key:'s:'+w.dataset.spec, html:specHtml(w.dataset.spec)};
+  if(w.dataset.piezo) return {key:'p:'+w.dataset.piezo, html:piezoHtml(w.dataset.piezo)};
+  return null;
+}
 const specPop=$('#specPop');
-function showSpec(code,anchor){
-  specPop.dataset.code=code;specPop.innerHTML=specHtml(code);specPop.classList.add('show');
-  const r=anchor.getBoundingClientRect();
+function showSpec(w,anchor){
+  const c=popupFor(w); if(!c) return;
+  specPop.dataset.code=c.key;specPop.innerHTML=c.html;specPop.classList.add('show');
+  const r=(anchor||w).getBoundingClientRect();
   const pw=specPop.offsetWidth,ph=specPop.offsetHeight,vw=innerWidth,vh=innerHeight,m=8;
   let left=r.left; if(left+pw>vw-m)left=vw-pw-m; if(left<m)left=m;
   let top=r.bottom+6; if(top+ph>vh-m)top=r.top-ph-6; if(top<m)top=m;
@@ -635,11 +697,11 @@ function showSpec(code,anchor){
 function hideSpec(){specPop.classList.remove('show');}
 let specPinned=false;
 document.addEventListener('mouseover',e=>{const w=e.target.closest('.injwrap');
-  if(w&&!specPinned){if(specPop.classList.contains('show')&&specPop.dataset.code===w.dataset.spec)return;showSpec(w.dataset.spec,w);}});
+  if(w&&!specPinned){const c=popupFor(w);if(specPop.classList.contains('show')&&c&&specPop.dataset.code===c.key)return;showSpec(w,w);}});
 document.addEventListener('mouseout',e=>{const w=e.target.closest('.injwrap');
   if(w&&!specPinned){const to=e.relatedTarget;if(!to||!to.closest||!to.closest('#specPop'))hideSpec();}});
 document.addEventListener('click',e=>{const b=e.target.closest('.specbtn');
-  if(b){e.stopPropagation();specPinned=true;showSpec(b.dataset.spec,b.closest('.injwrap'));return;}
+  if(b){e.stopPropagation();specPinned=true;const w=b.closest('.injwrap');showSpec(w,w);return;}
   if(specPinned&&!e.target.closest('#specPop')){specPinned=false;hideSpec();}});
 addEventListener('scroll',()=>{if(!specPinned)hideSpec();},true);
 
@@ -795,8 +857,9 @@ async function onLogin(session){
   // прибрати можливе автозаповнення пошти у полі пошуку
   const gs=$('#globalSearch');state.q='';gs.value='';gs.readOnly=true;
   setTimeout(()=>{if(!state.q)gs.value='';},350);
-  // первинне завантаження: марки + мета
-  optionsCache.brand=await fetchOptions('brand');
+  // первинне завантаження: марки + мета + спеки piezo (для попапа характеристик)
+  const [brandOpts]=await Promise.all([fetchOptions('brand'),loadPiezo()]);
+  optionsCache.brand=brandOpts;
   brandsMeta.total=optionsCache.brand.reduce((s,[,n])=>s+Number(n),0);
   brandsMeta.count=optionsCache.brand.length;
   await reloadAll();
