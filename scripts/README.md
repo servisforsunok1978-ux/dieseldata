@@ -26,8 +26,13 @@
 | Змінна | Призначення |
 |--------|-------------|
 | `SHEET_ID` | id Google-таблиці |
-| `SUPABASE_DB_URL` | рядок підключення Postgres (pooler, з паролем) |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | вміст JSON-ключа сервісного акаунта |
+| `SUPABASE_DB_PASSWORD` | пароль БД (сирий, без URL-екранування) — **секрет** |
+| `SUPABASE_DB_HOST` | хост pooler, напр. `aws-0-eu-west-3.pooler.supabase.com` |
+| `SUPABASE_DB_USER` | користувач, напр. `postgres.fxqboawaiwgltvxxykan` |
+| `SUPABASE_DB_PORT` | порт (за замовч. `6543`) |
+| `SUPABASE_DB_NAME` | база (за замовч. `postgres`) |
+| `SUPABASE_DB_URL` | *(альтернатива)* цілісний рядок підключення; використовується, лише якщо не задано `SUPABASE_DB_PASSWORD` |
 | `DRY_RUN=1` | те саме, що `--dry-run` |
 | `CSV_PATH` | те саме, що `--csv PATH` |
 | `MIN_ROWS` | абсолютний нижній поріг запобіжника (за замовч. `70`) |

@@ -17,5 +17,11 @@ jobs:
       - run: python scripts/sync_piezo.py
         env:
           SHEET_ID: ${{ vars.SHEET_ID }}
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          # Компоненти підключення до Postgres. Секрет — лише пароль (сирий,
+          # без URL-екранування). Хост/користувач/порт/БД не є секретами.
+          SUPABASE_DB_HOST: aws-0-eu-west-3.pooler.supabase.com
+          SUPABASE_DB_PORT: '6543'
+          SUPABASE_DB_USER: postgres.fxqboawaiwgltvxxykan
+          SUPABASE_DB_NAME: postgres
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}

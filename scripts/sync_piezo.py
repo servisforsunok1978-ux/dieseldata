@@ -103,7 +103,37 @@ def fetch_csv(path):
     return rows[0], rows[1:]
 
 
-def replace_all(db_url, rows):
+def db_conn_params():
+    """Параметри підключення для psycopg2.connect.
+
+    Пріоритет — окремі змінні: пароль передається СИРИМ, без складання URL і
+    без percent-encoding, тож будь-які спецсимволи в паролі працюють:
+      SUPABASE_DB_HOST, SUPABASE_DB_PORT (6543), SUPABASE_DB_USER,
+      SUPABASE_DB_NAME (postgres), SUPABASE_DB_PASSWORD
+    Fallback — цілісний рядок SUPABASE_DB_URL (застарілий шлях).
+    """
+    pwd = os.environ.get('SUPABASE_DB_PASSWORD')
+    if pwd:
+        host = os.environ.get('SUPABASE_DB_HOST')
+        user = os.environ.get('SUPABASE_DB_USER')
+        if not host or not user:
+            raise SystemExit('ABORT: задано SUPABASE_DB_PASSWORD, але бракує '
+                             'SUPABASE_DB_HOST або SUPABASE_DB_USER.')
+        return dict(
+            host=host,
+            port=os.environ.get('SUPABASE_DB_PORT', '6543'),
+            user=user,
+            password=pwd,
+            dbname=os.environ.get('SUPABASE_DB_NAME', 'postgres'),
+        )
+    url = os.environ.get('SUPABASE_DB_URL')
+    if url:
+        return dict(dsn=url)
+    raise SystemExit('ABORT: не задано ні SUPABASE_DB_PASSWORD (+HOST/USER), '
+                     'ні SUPABASE_DB_URL.')
+
+
+def replace_all(conn_params, rows):
     """Атомарна повна заміна в одній транзакції.
 
     Перед TRUNCATE — відносний запобіжник: якщо нова кількість рядків впала
@@ -114,7 +144,7 @@ def replace_all(db_url, rows):
     import psycopg2
 
     cols = TARGET_COLS
-    with psycopg2.connect(db_url) as conn:
+    with psycopg2.connect(**conn_params) as conn:
         with conn.cursor() as cur:
             cur.execute('SELECT count(*) FROM public.bosch_piezo_inj;')
             current = cur.fetchone()[0]
@@ -180,10 +210,7 @@ def main(argv=None):
         print('DRY RUN — запис пропущено.')
         return
 
-    db_url = os.environ.get('SUPABASE_DB_URL')
-    if not db_url:
-        raise SystemExit('ABORT: не задано SUPABASE_DB_URL.')
-    replace_all(db_url, rows)
+    replace_all(db_conn_params(), rows)
     print('OK: таблицю оновлено.')
 
 
