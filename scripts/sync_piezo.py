@@ -112,22 +112,27 @@ def db_conn_params():
       SUPABASE_DB_NAME (postgres), SUPABASE_DB_PASSWORD
     Fallback — цілісний рядок SUPABASE_DB_URL (застарілий шлях).
     """
-    pwd = os.environ.get('SUPABASE_DB_PASSWORD')
-    if pwd:
-        host = os.environ.get('SUPABASE_DB_HOST')
-        user = os.environ.get('SUPABASE_DB_USER')
+    raw_pwd = os.environ.get('SUPABASE_DB_PASSWORD')
+    if raw_pwd:
+        pwd = raw_pwd.strip()  # захист від зайвого пробілу/переносу при вставці
+        if pwd != raw_pwd:
+            print('УВАГА: у SUPABASE_DB_PASSWORD були пробіли/переноси на краях '
+                  '— обрізав їх.')
+        host = (os.environ.get('SUPABASE_DB_HOST') or '').strip()
+        user = (os.environ.get('SUPABASE_DB_USER') or '').strip()
+        port = (os.environ.get('SUPABASE_DB_PORT') or '6543').strip()
+        dbname = (os.environ.get('SUPABASE_DB_NAME') or 'postgres').strip()
         if not host or not user:
             raise SystemExit('ABORT: задано SUPABASE_DB_PASSWORD, але бракує '
                              'SUPABASE_DB_HOST або SUPABASE_DB_USER.')
-        return dict(
-            host=host,
-            port=os.environ.get('SUPABASE_DB_PORT', '6543'),
-            user=user,
-            password=pwd,
-            dbname=os.environ.get('SUPABASE_DB_NAME', 'postgres'),
-        )
+        # Діагностика без витоку: сам пароль не друкуємо, лише його довжину.
+        print(f'DB: компоненти — host={host}, port={port}, user={user}, '
+              f'dbname={dbname}, довжина пароля={len(pwd)}.')
+        return dict(host=host, port=port, user=user, password=pwd, dbname=dbname)
     url = os.environ.get('SUPABASE_DB_URL')
     if url:
+        print('DB: використано SUPABASE_DB_URL (fallback) — '
+              'SUPABASE_DB_PASSWORD не задано.')
         return dict(dsn=url)
     raise SystemExit('ABORT: не задано ні SUPABASE_DB_PASSWORD (+HOST/USER), '
                      'ні SUPABASE_DB_URL.')
