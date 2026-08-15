@@ -788,7 +788,7 @@ function renderResults(){
       </div>
       <div class="readouts">
         <div class="ro inj"><div class="k${r.manufacturer?' mlbl':''}"><span class="dot"></span>${r.manufacturer?esc(r.manufacturer)+' Injector':'Форсунка'}</div>${readoutInjector(r)}</div>
-        <div class="ro pmp"><div class="k"><span class="dot"></span>Насос</div>${readoutPart(r.pump)}</div>
+        <div class="ro pmp"><div class="k mlbl"><span class="dot"></span>High-pressure Pump</div>${readoutPart(r.pump)}</div>
       </div>`;
     box.appendChild(card);
   });
