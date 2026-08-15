@@ -203,6 +203,9 @@ select.set{border-color:#41506680}
 .injwrap .copy .v{border-bottom:1px dotted var(--amber);padding-bottom:1px}
 .specbtn{flex-shrink:0;width:17px;height:17px;margin-top:2px;border-radius:50%;border:1px solid var(--amber);background:transparent;color:var(--amber);font-family:var(--ui);font-weight:700;font-size:11px;font-style:italic;line-height:1;display:grid;place-items:center;cursor:pointer;transition:.12s}
 .specbtn:hover{background:var(--amber);color:#161009}
+.speccard .specrow{padding:15px 16px;display:flex;justify-content:center;align-items:center}
+.speccard .specrow .v{font-size:16px}
+.speccard .specrow .specbtn{width:19px;height:19px;font-size:12px}
 
 .spec-pop{
   position:fixed;z-index:300;max-width:340px;width:max-content;
@@ -513,6 +516,7 @@ let optionsCache={};            // key -> [[value,cnt],...]
 let brandsMeta={total:0,count:0};
 let specStore={};               // code -> spec object (Bosch Solenoid)
 let piezoStore={};              // 0445-токен -> рядок спеки (Bosch Piezo)
+let piezoRows=[];               // усі рядки piezo (для пошуку за oem/oe без авто)
 let resultState={mode:'inactive'};
 
 /* ── Data access ───────────────────────────────────────────────────────── */
@@ -559,8 +563,8 @@ async function refreshResults(){
 async function loadPiezo(){
   const {data,error}=await sb.rpc('piezo_specs');
   if(error){console.warn('piezo_specs',error.message);return;}
-  piezoStore={};
-  (data||[]).forEach(row=>{
+  piezoStore={};piezoRows=data||[];
+  piezoRows.forEach(row=>{
     String(row.oem_number||'').split(/\s+/).forEach(tok=>{
       if(/^0445/.test(tok)&&!piezoStore[tok]) piezoStore[tok]=row;
     });
@@ -570,6 +574,25 @@ function piezoMatch(injector){
   const toks=String(injector||'').split(/\s+/);
   for(const t of toks){ if(/^0445/.test(t)&&piezoStore[t]) return t; }
   return null;
+}
+/* Пошук piezo-рядків за токеном запиту в oem_number АБО oe_number (для випадку,
+   коли форсунку ввели в глобальний пошук, а авто з нею ще немає в базі).
+   Числові токени — повний збіг (як на сервері); повертаємо унікальні за 0445-ключем. */
+function piezoSearchMatch(q){
+  const terms=String(q||'').toLowerCase().split(/\s+/).filter(Boolean);
+  if(!terms.length) return [];
+  const out=[],seen=new Set();
+  for(const row of piezoRows){
+    const oemToks=String(row.oem_number||'').split(/\s+/);
+    const all=oemToks.concat(String(row.oe_number||'').split(/\s+/)).map(x=>x.toLowerCase());
+    if(!terms.some(t=>all.includes(t))) continue;              // збіг за повним токеном
+    // ключ/показ: якщо ввели саме 0445-номер цього рядка — показуємо його, інакше перший 0445
+    const typed=terms.find(t=>/^0445/.test(t)&&oemToks.some(x=>x.toLowerCase()===t));
+    const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):oemToks.find(t=>/^0445/.test(t));
+    if(!tok||seen.has(tok)) continue;
+    seen.add(tok);out.push({row,tok});
+  }
+  return out;
 }
 
 /* ── Filters render ────────────────────────────────────────────────────── */
@@ -732,10 +755,21 @@ function renderResults(){
     return;
   }
   const rows=resultState.rows;
-  cnt.innerHTML=rows.length?`Знайдено <b class="amber">${rows.length}</b> ${plural(rows.length,'модифікацію','модифікації','модифікацій')}`:`Нічого не знайдено`;
-  if(rows.length===0){
+  // piezo-довідка: форсунки зі збігом за oem/oe, яких немає серед знайдених авто
+  const shownToks=new Set();
+  rows.forEach(r=>{const t=piezoMatch(r.injector);if(t)shownToks.add(t);});
+  const specOnly=state.q?piezoSearchMatch(state.q).filter(m=>!shownToks.has(m.tok)):[];
+
+  if(rows.length===0&&specOnly.length===0){
+    cnt.innerHTML=`Нічого не знайдено`;
     box.innerHTML=`<div class="state"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/><path d="M8 11h6"/></svg><h3>Немає збігів</h3><p>Спробуйте прибрати частину фільтрів або уточнити запит.</p></div>`;
     return;
+  }
+  if(rows.length){
+    cnt.innerHTML=`Знайдено <b class="amber">${rows.length}</b> ${plural(rows.length,'модифікацію','модифікації','модифікацій')}`
+      +(specOnly.length?` · ще <b class="amber">${specOnly.length}</b> форс. без авто`:``);
+  }else{
+    cnt.innerHTML=`Авто не знайдено · характеристики форсунки: <b class="amber">${specOnly.length}</b>`;
   }
   rows.forEach(r=>{
     const card=el('div','card');const sp=[];
@@ -758,6 +792,15 @@ function renderResults(){
       </div>`;
     box.appendChild(card);
   });
+  specOnly.forEach(m=>box.appendChild(piezoSpecCard(m)));
+}
+/* картка-довідка: форсунка Bosch Piezo без авто в базі — одне вікно на всю
+   ширину: номер форсунки + кнопка «i» (той самий попап характеристик). */
+function piezoSpecCard(m){
+  const card=el('div','card speccard');
+  const copyBtn=`<button class="copy" data-copy="${esc(m.tok)}"><span class="v">${esc(m.tok)}</span>${CPI}</button>`;
+  card.innerHTML=`<div class="ro inj specrow"><span class="injwrap" data-piezo="${esc(m.tok)}">${copyBtn}<button class="specbtn" data-piezo="${esc(m.tok)}" aria-label="Характеристики форсунки">i</button></span></div>`;
+  return card;
 }
 
 /* ── Orchestration ─────────────────────────────────────────────────────── */
