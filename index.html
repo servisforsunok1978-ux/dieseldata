@@ -559,8 +559,9 @@ async function refreshResults(){
 }
 
 /* Bosch Piezo: одноразове завантаження спек + індекс за 0445-токенами oem_number.
-   Piezo не має FK на vehicles (на відміну від solenoid.spec_code), тож зіставляємо
-   форсунку авто з рядком спеки за спільним номером Bosch (0445115/116/117/118). */
+   Зіставлення авто↔спека (і solenoid, і piezo) — за спільним номером Bosch в
+   injector, без FK (колонку solenoid.spec_code видалено 2026-08-16). Solenoid
+   спеку віддає RPC search_vehicles; piezo — цей клієнтський індекс. */
 async function loadPiezo(){
   const {data,error}=await sb.rpc('piezo_specs');
   if(error){console.warn('piezo_specs',error.message);return;}
