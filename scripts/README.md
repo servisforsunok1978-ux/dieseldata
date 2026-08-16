@@ -90,24 +90,27 @@ python scripts/sync_piezo.py --csv sample.csv --dry-run
 `sheets-sync@dieseldata-sync.iam.gserviceaccount.com` (роль Редактор).
 Id — у GitHub variable `SHEET_ID_VEHICLES`.
 
-## Колонки аркуша (16 — усе, крім generated `search_vector`)
+## Колонки аркуша (15 — усе, крім generated `search_vector`)
 
 ```
 id | brand | model | generation | volume | years |
 year_start | year_end | year_open |
-engine | body | manufacturer | injector | pump | vin | spec_code
+engine | body | manufacturer | injector | pump | vin
 ```
 
-Дзеркалимо всі 16 як є (точний round-trip). `search_vector` не чіпаємо — БД
-рахує її сама (GENERATED ALWAYS).
+Дзеркалимо всі 15 як є (точний round-trip). `search_vector` не чіпаємо — БД
+рахує її сама (GENERATED ALWAYS). Колонки `spec_code` **більше немає** (видалена
+2026-08-16).
 
 ## Правила (специфіка vehicles)
 
 1. **`id`** — PK без sequence: береться з аркуша як є. Дубль id → ABORT. Рядок
    без id → ABORT (у логу друкується `next_free_id` для нового авто).
 2. **`brand`, `model`** — NOT NULL: рядок без них відкидається (службові/порожні).
-3. **`spec_code`** — FK на `bosch_solenoid_inj.code`. Невідомий код → `NULL` +
-   рядок у звіт (не ABORT, не вигадуємо). Валідні коди читаються з БД перед синком.
+3. **Спека форсунки** — окремого поля немає. Зіставлення авто↔спека йде за
+   спільним `0445`-токеном між `injector` і `bosch_solenoid_inj.code` (solenoid)
+   / `bosch_piezo_inj.oem_number` (piezo) — прямо в RPC `search_vehicles`. Тож у
+   синку немає ні `spec_code`, ні FK-валідації. Головне — точний номер у `injector`.
 4. **`year_start/year_end/year_open`** — дзеркаляться як є. Перераховуються зі
    `years` **лише коли всі три порожні** (нове авто). `parse_years` розуміє
    `YYYY`, `YYYY-YYYY`, `YYYY-`, `MM/YYYY-MM/YYYY`, `MM/YYYY-`.
@@ -122,7 +125,7 @@ engine | body | manufacturer | injector | pump | vin | spec_code
 | Файл | Призначення |
 |------|-------------|
 | `scripts/bootstrap_vehicles.py` | одноразовий дамп `vehicles` → існуюча Google-таблиця (пише у вкладку `vehicles`). Info-режим без `--sheet-id` друкує email сервісного акаунта. |
-| `scripts/sync_vehicles.py` | щоденний синк Sheet → `vehicles`. Прапорці: `--dry-run`, `--diff` (сирий-аркуш vs БД, без запису), `--csv PATH`, `--skip-fk-check`. |
+| `scripts/sync_vehicles.py` | щоденний синк Sheet → `vehicles`. Прапорці: `--dry-run`, `--diff` (сирий-аркуш vs БД, без запису), `--csv PATH`. |
 
 ## Env-змінні (vehicles)
 
