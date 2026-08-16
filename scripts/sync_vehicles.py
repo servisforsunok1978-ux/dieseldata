@@ -21,8 +21,12 @@
   * search_vector — GENERATED ALWAYS: НІКОЛИ не вставляємо, БД рахує сама.
   * id — PK без sequence: беремо з аркуша як є; дубль id -> ABORT.
   * year_start/year_end/year_open — похідні від `years` (перераховуємо тут).
-  * spec_code — FK на bosch_solenoid_inj.code: невідомий код -> NULL + звіт.
   * brand, model — NOT NULL: рядок без них відкидаємо.
+
+Примітка: колонки spec_code більше немає (видалена 2026-08-16). Зіставлення
+авто↔спека форсунки тепер за спільним 0445-токеном між injector і
+bosch_solenoid_inj.code — прямо в RPC search_vehicles (як у piezo). Тож у синку
+немає ні FK-валідації, ні окремого поля.
 """
 import argparse
 import csv
@@ -46,8 +50,7 @@ MAX_SHRINK_FRAC = float(os.environ.get('MAX_SHRINK_FRAC', '0.2'))
 # зі `years` ЛИШЕ коли всі три порожні — зручність для нового авто.
 SHEET_COLS = ['id', 'brand', 'model', 'generation', 'volume', 'years',
               'year_start', 'year_end', 'year_open',
-              'engine', 'body', 'manufacturer', 'injector', 'pump', 'vin',
-              'spec_code']
+              'engine', 'body', 'manufacturer', 'injector', 'pump', 'vin']
 INSERT_COLS = SHEET_COLS  # усе, що читаємо, те й пишемо (без search_vector)
 
 
@@ -102,17 +105,16 @@ def to_bool_or_none(v, ctx):
     raise SystemExit(f'ABORT: нерозпізнаний year_open {v!r} ({ctx}).')
 
 
-def transform(header, data_rows, valid_spec_codes):
+def transform(header, data_rows):
     """header: назви колонок; data_rows: списки клітинок.
-    valid_spec_codes: set існуючих bosch_solenoid_inj.code, або None (пропустити FK).
-    Повертає (rows, dropped_specs, bad_years)."""
+    Повертає (rows, bad_years)."""
     idx = {name: header.index(name) for name in SHEET_COLS if name in header}
     missing = [n for n in SHEET_COLS if n not in idx]
     if missing:
         raise SystemExit(f'У джерелі бракує колонок: {missing}')
 
     need = max(idx.values())
-    out, seen_ids, dropped_specs, bad_years = [], set(), [], []
+    out, seen_ids, bad_years = [], set(), []
     for cells in data_rows:
         if len(cells) <= need:
             cells = cells + [''] * (need + 1 - len(cells))
@@ -153,13 +155,8 @@ def transform(header, data_rows, valid_spec_codes):
             yo = False if yo is None else yo  # year_open — NOT NULL
         rec['year_start'], rec['year_end'], rec['year_open'] = ys, ye, yo
 
-        sc = rec['spec_code']
-        if sc is not None and valid_spec_codes is not None and sc not in valid_spec_codes:
-            dropped_specs.append((rid, sc))
-            rec['spec_code'] = None
-
         out.append(rec)
-    return out, dropped_specs, bad_years
+    return out, bad_years
 
 
 def fetch_sheet(sheet_id, sa_info):
@@ -211,14 +208,6 @@ def db_conn_params():
         return dict(dsn=url)
     raise SystemExit('ABORT: не задано ні SUPABASE_DB_PASSWORD (+HOST/USER), '
                      'ні SUPABASE_DB_URL.')
-
-
-def fetch_valid_spec_codes(conn_params):
-    import psycopg2
-    with psycopg2.connect(**conn_params) as conn:
-        with conn.cursor() as cur:
-            cur.execute('SELECT code FROM public.bosch_solenoid_inj;')
-            return {r[0] for r in cur.fetchall()}
 
 
 def replace_all(conn_params, rows):
@@ -299,8 +288,6 @@ def parse_args(argv):
                    help='показати розбіжності сирий-аркуш vs БД (без запису)')
     p.add_argument('--csv', metavar='PATH', default=os.environ.get('CSV_PATH'),
                    help='читати з локального CSV-семпла замість Google API')
-    p.add_argument('--skip-fk-check', action='store_true',
-                   help='не валідувати spec_code проти bosch_solenoid_inj (офлайн-тест)')
     return p.parse_args(argv)
 
 
@@ -327,21 +314,11 @@ def main(argv=None):
         diff_against_db(db_conn_params(), header, data)
         return
 
-    # Валідні spec_code для FK — читаємо з БД (крім --skip-fk-check).
-    valid = None
-    conn_params = None
-    if not args.skip_fk_check:
-        conn_params = db_conn_params()
-        valid = fetch_valid_spec_codes(conn_params)
-        print(f'Валідних spec_code у bosch_solenoid_inj: {len(valid)}.')
-
-    rows, dropped, bad_years = transform(header, data, valid)
+    rows, bad_years = transform(header, data)
     print(f'Розпарсовано рядків: {len(rows)}')
     if rows:
         print(f'next_free_id = {max(r["id"] for r in rows) + 1}')  # підказка для нового авто
     print('По брендах:', dict(sorted(Counter(r['brand'] for r in rows).items())))
-    if dropped:
-        print(f'spec_code -> NULL (немає в bosch_solenoid_inj), {len(dropped)}: {dropped}')
     if bad_years:
         print(f'Незрозумілий формат `years` (роки лишив NULL), {len(bad_years)}: {bad_years}')
 
@@ -357,9 +334,7 @@ def main(argv=None):
         print('DRY RUN — запис пропущено.')
         return
 
-    if conn_params is None:
-        conn_params = db_conn_params()
-    replace_all(conn_params, rows)
+    replace_all(db_conn_params(), rows)
     print('OK: vehicles оновлено.')
 
 

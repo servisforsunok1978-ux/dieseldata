@@ -25,11 +25,12 @@ Env:
   SHEET_ID_VEHICLES            — id цільової таблиці (або прапорець --sheet-id)
   SUPABASE_DB_PASSWORD (+HOST/USER/PORT/NAME) — підключення до Postgres
 
-Вигружаються всі 16 колонок, крім generated search_vector (БД рахує її сама):
+Вигружаються всі 15 колонок, крім generated search_vector (БД рахує її сама):
   id, brand, model, generation, volume, years, year_start, year_end, year_open,
-  engine, body, manufacturer, injector, pump, vin, spec_code
-year_start/end/open дзеркалимо як є (round-trip точний); sync перераховує роки
-зі `years` лише для нового рядка, де вони порожні.
+  engine, body, manufacturer, injector, pump, vin
+(spec_code видалено 2026-08-16 — зіставлення авто↔спека тепер за 0445-токеном
+injector у RPC.) year_start/end/open дзеркалимо як є (round-trip точний); sync
+перераховує роки зі `years` лише для нового рядка, де вони порожні.
 """
 import argparse
 import json
@@ -39,8 +40,7 @@ import sys
 SHEET_TAB = 'vehicles'
 EXPORT_COLS = ['id', 'brand', 'model', 'generation', 'volume', 'years',
                'year_start', 'year_end', 'year_open',
-               'engine', 'body', 'manufacturer', 'injector', 'pump', 'vin',
-               'spec_code']
+               'engine', 'body', 'manufacturer', 'injector', 'pump', 'vin']
 # Запис у наявну таблицю — досить вузького scope.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
