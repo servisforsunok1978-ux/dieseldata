@@ -1,0 +1,39 @@
+name: bootstrap-solenoid
+
+# Одноразове наповнення: пише поточні bosch_solenoid_inj із Supabase у ІСНУЮЧУ
+# Google-таблицю. Лише ручний запуск.
+#   Крок 0: запусти БЕЗ sheet_id -> лог надрукує SERVICE_ACCOUNT_EMAIL.
+#   Крок 1: запусти з sheet_id -> наповнить вкладку `bosch_solenoid_inj`.
+#   Крок 2: постав цей id у GitHub variable SHEET_ID_SOLENOID.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sheet_id:
+        description: 'Id існуючої Google-таблиці (порожній -> лише показати email СА)'
+        required: false
+        default: ''
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - name: Run bootstrap
+        run: |
+          if [ -n "${{ inputs.sheet_id }}" ]; then
+            python scripts/bootstrap_solenoid.py --create --sheet-id "${{ inputs.sheet_id }}"
+          else
+            python scripts/bootstrap_solenoid.py
+          fi
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SUPABASE_DB_HOST: aws-0-eu-west-3.pooler.supabase.com
+          SUPABASE_DB_PORT: '6543'
+          SUPABASE_DB_USER: postgres.fxqboawaiwgltvxxykan
+          SUPABASE_DB_NAME: postgres
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}

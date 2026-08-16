@@ -1,0 +1,36 @@
+name: sync-solenoid
+
+on:
+  schedule:
+    - cron: '45 6 * * *'   # щодня 06:45 UTC (зсув від piezo 06:00 і vehicles 06:30)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry-run (тільки статистика, без запису в БД)'
+        type: boolean
+        default: false
+      diff:
+        description: 'Diff (сирий-аркуш vs БД, без запису)'
+        type: boolean
+        default: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - run: python scripts/sync_solenoid.py
+        env:
+          DRY_RUN: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '1' || '0' }}
+          DIFF: ${{ (github.event_name == 'workflow_dispatch' && inputs.diff) && '1' || '0' }}
+          SHEET_ID_SOLENOID: ${{ vars.SHEET_ID_SOLENOID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SUPABASE_DB_HOST: aws-0-eu-west-3.pooler.supabase.com
+          SUPABASE_DB_PORT: '6543'
+          SUPABASE_DB_USER: postgres.fxqboawaiwgltvxxykan
+          SUPABASE_DB_NAME: postgres
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
