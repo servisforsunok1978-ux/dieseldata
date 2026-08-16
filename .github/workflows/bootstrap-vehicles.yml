@@ -1,21 +1,21 @@
 name: bootstrap-vehicles
 
-# Одноразовий запуск: створює НОВУ Google-таблицю сервісним акаунтом, вигружає в
-# неї поточні vehicles із Supabase і ділиться нею з OWNER_EMAIL на Редагування.
-# Лише ручний запуск. Після успіху — покласти надрукований SPREADSHEET_ID у
-# GitHub variable SHEET_ID_VEHICLES (робиться поза цим workflow).
+# Одноразове наповнення: пише поточні vehicles із Supabase у ІСНУЮЧУ Google-таблицю.
+# Лише ручний запуск.
+#
+# Крок 0 (один раз): запусти БЕЗ sheet_id — лог надрукує SERVICE_ACCOUNT_EMAIL.
+#   Створи порожню таблицю у своєму Drive, поділись нею з тим email (Редактор),
+#   візьми її id.
+# Крок 1: запусти з sheet_id — скрипт наповнить вкладку `vehicles`.
+# Крок 2: постав цей id у GitHub variable SHEET_ID_VEHICLES.
 
 on:
   workflow_dispatch:
     inputs:
-      owner_email:
-        description: 'Пошта, якій дати доступ Редагування'
-        required: true
-        default: servisforsunok1978@gmail.com
-      title:
-        description: 'Назва Google-таблиці'
+      sheet_id:
+        description: 'Id існуючої Google-таблиці (порожній -> лише показати email СА)'
         required: false
-        default: 'dieseldata · vehicles (source of truth)'
+        default: ''
 
 jobs:
   bootstrap:
@@ -26,9 +26,14 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r scripts/requirements.txt
-      - run: python scripts/bootstrap_vehicles.py --create --title "${{ inputs.title }}"
+      - name: Run bootstrap
+        run: |
+          if [ -n "${{ inputs.sheet_id }}" ]; then
+            python scripts/bootstrap_vehicles.py --create --sheet-id "${{ inputs.sheet_id }}"
+          else
+            python scripts/bootstrap_vehicles.py
+          fi
         env:
-          OWNER_EMAIL: ${{ inputs.owner_email }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           SUPABASE_DB_HOST: aws-0-eu-west-3.pooler.supabase.com
           SUPABASE_DB_PORT: '6543'

@@ -1,26 +1,32 @@
 #!/usr/bin/env python3
-"""Одноразовий bootstrap: дамп public.vehicles -> НОВА Google-таблиця.
+"""Одноразовий bootstrap: дамп public.vehicles -> ІСНУЮЧА Google-таблиця.
 
-Створює таблицю сервісним акаунтом (варіант «а» з брифу), пише в неї поточні
-рядки vehicles і ділиться нею з поштою власника на *Редагування*. Після цього
-Google-таблиця стає джерелом істини, а sync_vehicles.py дзеркалить її назад у БД.
+Чому не «скрипт створює таблицю сам»: сервісний акаунт без Google Workspace не
+має власного сховища Drive і не може створити файл (Sheets API повертає 403
+"The caller does not have permission"). Тож потрібен один ручний крок:
 
-Читає з env:
+  1) Андрій створює ПОРОЖНЮ Google-таблицю у своєму Drive.
+  2) Ділиться нею з email сервісного акаунта (роль *Редактор*).
+     Цей email друкує info-режим цього скрипта (нижче) — це не секрет.
+  3) Дає id таблиці (SHEET_ID_VEHICLES) — і скрипт наповнює вкладку `vehicles`.
+
+Після цього Google-таблиця стає джерелом істини, а sync_vehicles.py дзеркалить
+її назад у БД.
+
+Режими:
+  без --sheet-id  -> INFO: лише друкує client_email сервісного акаунта та
+                     інструкцію (нічого не пише). Зручно дізнатись, кому шарити.
+  --sheet-id ID   -> наповнює вкладку `vehicles` цієї таблиці (створює вкладку,
+                     якщо її нема; очищає й перезаписує). Потрібен --create.
+  --create        -> підтвердження реального запису (щоб не зачепити випадково).
+
+Env:
   GOOGLE_SERVICE_ACCOUNT_JSON  — вміст JSON-ключа сервісного акаунта
-  OWNER_EMAIL                  — пошта, якій дати доступ *Редагування*
+  SHEET_ID_VEHICLES            — id цільової таблиці (або прапорець --sheet-id)
   SUPABASE_DB_PASSWORD (+HOST/USER/PORT/NAME) — підключення до Postgres
 
-Прапорці:
-  --create   — ОБОВʼЯЗКОВО для реального створення (захист від випадкового
-               повторного прогону, що наплодив би дублі таблиць).
-  --title T  — назва файлу (за замовч. "dieseldata · vehicles (source of truth)").
-
-Вимоги в Google Cloud (перевірити ДО запуску):
-  * увімкнено Google Sheets API І Google Drive API;
-  * scope нижче доступні сервісному акаунту.
-
-Колонки, що вигружаються (13; БЕЗ search_vector та year_start/end/open —
-їх sync перераховує/БД генерує сама):
+Вигружаються 13 колонок (БЕЗ search_vector та year_start/end/open —
+sync перераховує роки, БД генерує search_vector):
   id, brand, model, generation, volume, years, engine, body,
   manufacturer, injector, pump, vin, spec_code
 """
@@ -33,8 +39,8 @@ SHEET_TAB = 'vehicles'
 EXPORT_COLS = ['id', 'brand', 'model', 'generation', 'volume', 'years',
                'engine', 'body', 'manufacturer', 'injector', 'pump', 'vin',
                'spec_code']
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets',
-          'https://www.googleapis.com/auth/drive.file']
+# Запис у наявну таблицю — досить вузького scope.
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
 
 def db_conn_params():
@@ -67,71 +73,72 @@ def fetch_vehicles(conn_params):
 
 def to_cell(v):
     """None -> '' ; усе інше -> текст (щоб Google з RAW нічого не перетворював)."""
-    if v is None:
-        return ''
-    return str(v)
+    return '' if v is None else str(v)
+
+
+def ensure_tab(sheets, sid):
+    """Повертає, коли вкладка SHEET_TAB існує (додає її за потреби)."""
+    meta = sheets.spreadsheets().get(spreadsheetId=sid).execute()
+    titles = [s['properties']['title'] for s in meta.get('sheets', [])]
+    if SHEET_TAB in titles:
+        return
+    sheets.spreadsheets().batchUpdate(spreadsheetId=sid, body={
+        'requests': [{'addSheet': {'properties': {'title': SHEET_TAB}}}]}).execute()
+    print(f'Додано вкладку `{SHEET_TAB}`.')
 
 
 def main(argv=None):
     argv = argv if argv is not None else sys.argv[1:]
-    p = argparse.ArgumentParser(description='Bootstrap vehicles -> new Google Sheet')
+    p = argparse.ArgumentParser(description='Bootstrap vehicles -> existing Google Sheet')
     p.add_argument('--create', action='store_true',
-                   help='реально створити таблицю (обовʼязково)')
-    p.add_argument('--title', default='dieseldata · vehicles (source of truth)')
+                   help='підтвердити реальний запис у таблицю')
+    p.add_argument('--sheet-id', default=os.environ.get('SHEET_ID_VEHICLES'),
+                   help='id цільової таблиці; без нього — INFO-режим')
     args = p.parse_args(argv)
 
-    if not args.create:
-        raise SystemExit(
-            'Відмова: bootstrap створює НОВУ таблицю. Запусти з --create свідомо. '
-            'Якщо таблиця вже є — bootstrap не потрібен, користуйся sync_vehicles.py.')
-
     sa_raw = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON')
-    owner = (os.environ.get('OWNER_EMAIL') or '').strip()
     if not sa_raw:
         raise SystemExit('ABORT: не задано GOOGLE_SERVICE_ACCOUNT_JSON.')
-    if not owner:
-        raise SystemExit('ABORT: не задано OWNER_EMAIL (кому дати доступ).')
     sa_info = json.loads(sa_raw)
+    client_email = sa_info.get('client_email', '(невідомо)')
+
+    print('=' * 60)
+    print(f'SERVICE_ACCOUNT_EMAIL={client_email}')
+    print('=' * 60)
+
+    if not args.sheet_id:
+        print('INFO-режим (без --sheet-id): нічого не записую.')
+        print('Кроки:')
+        print(f'  1) Створи порожню Google-таблицю у своєму Drive.')
+        print(f'  2) Поділись нею з {client_email} на роль «Редактор».')
+        print(f'  3) Перезапусти bootstrap із id цієї таблиці '
+              f'(input sheet_id / --sheet-id).')
+        return
+
+    if not args.create:
+        raise SystemExit('Відмова: для запису додай --create свідомо.')
 
     from google.oauth2.service_account import Credentials
     from googleapiclient.discovery import build
 
     creds = Credentials.from_service_account_info(sa_info, scopes=SCOPES)
     sheets = build('sheets', 'v4', credentials=creds)
-    drive = build('drive', 'v3', credentials=creds)
 
-    # 1) дані з БД
     data = fetch_vehicles(db_conn_params())
     print(f'Прочитано з vehicles: {len(data)} рядків.')
     values = [EXPORT_COLS] + [[to_cell(c) for c in row] for row in data]
 
-    # 2) створити таблицю з єдиною вкладкою `vehicles`
-    created = sheets.spreadsheets().create(body={
-        'properties': {'title': args.title},
-        'sheets': [{'properties': {'title': SHEET_TAB}}],
-    }).execute()
-    sid = created['spreadsheetId']
-    url = created.get('spreadsheetUrl', f'https://docs.google.com/spreadsheets/d/{sid}')
-    print(f'Створено таблицю: {sid}')
-
-    # 3) записати header + рядки (RAW — без автоперетворень чисел/дат)
+    ensure_tab(sheets, args.sheet_id)
+    # очистити стару вкладку, щоб не лишились хвостові рядки
+    sheets.spreadsheets().values().clear(
+        spreadsheetId=args.sheet_id, range=SHEET_TAB).execute()
     sheets.spreadsheets().values().update(
-        spreadsheetId=sid, range=f'{SHEET_TAB}!A1',
+        spreadsheetId=args.sheet_id, range=f'{SHEET_TAB}!A1',
         valueInputOption='RAW', body={'values': values}).execute()
-    print(f'Записано {len(values)} рядків (з заголовком).')
-
-    # 4) поділитися з власником на Редагування
-    drive.permissions().create(
-        fileId=sid, sendNotificationEmail=True,
-        body={'type': 'user', 'role': 'writer', 'emailAddress': owner}).execute()
-    print(f'Надано доступ (writer) для {owner}.')
-
-    print('=' * 60)
-    print(f'SPREADSHEET_ID={sid}')
-    print(f'SPREADSHEET_URL={url}')
-    print('=' * 60)
+    print(f'Записано {len(values)} рядків (з заголовком) у вкладку `{SHEET_TAB}`.')
+    print(f'SPREADSHEET_URL=https://docs.google.com/spreadsheets/d/{args.sheet_id}')
     print('Далі: постав цей id у GitHub variable SHEET_ID_VEHICLES і прожени '
-          'sync-vehicles з DRY_RUN=1 для перевірки round-trip.')
+          'sync-vehicles з dry_run=true для перевірки round-trip.')
 
 
 if __name__ == '__main__':
