@@ -40,14 +40,15 @@ MIN_ROWS = int(os.environ.get('MIN_ROWS', '220'))
 MAX_SHRINK_FRAC = float(os.environ.get('MAX_SHRINK_FRAC', '0.2'))
 
 # Заголовки аркуша == імена колонок БД (bootstrap так їх і створює).
+# Дзеркалимо ВСІ колонки, крім generated search_vector: year_start/end/open теж
+# їдуть в аркуш і повертаються як є (щоб round-trip був точним; дані БД по
+# year_open непослідовні й перерахунком не відтворюються). Роки перераховуємо
+# зі `years` ЛИШЕ коли всі три порожні — зручність для нового авто.
 SHEET_COLS = ['id', 'brand', 'model', 'generation', 'volume', 'years',
+              'year_start', 'year_end', 'year_open',
               'engine', 'body', 'manufacturer', 'injector', 'pump', 'vin',
               'spec_code']
-# Що реально пишемо в INSERT: + похідні роки, БЕЗ search_vector (generated).
-INSERT_COLS = ['id', 'brand', 'model', 'generation', 'volume', 'years',
-               'year_start', 'year_end', 'year_open',
-               'engine', 'body', 'manufacturer', 'injector', 'pump', 'vin',
-               'spec_code']
+INSERT_COLS = SHEET_COLS  # усе, що читаємо, те й пишемо (без search_vector)
 
 
 def clean(v):
@@ -58,22 +59,47 @@ def clean(v):
 
 
 def parse_years(years):
-    """'2011-2015'->(2011,2015,False); '2011-'->(2011,None,True);
-       '2014'->(2014,2014,False); порожньо/'—'->(None,None,False).
-    Невідомий формат — НЕ вгадуємо: роки NULL, year_open=False (див. звіт)."""
-    s = (years or '').strip().replace('—', '').strip()
+    """Похідні (year_start, year_end, year_open) зі `years`. Вживається ЛИШЕ
+    коли всі три поля в аркуші порожні (новий рядок). Розуміє і `YYYY`, і
+    `MM/YYYY` з обох боків:
+      '05/2010-05/2013' -> (2010, 2013, False)
+      '11/2019-'        -> (2019, None,  True)
+      '2011-2015'       -> (2011, 2015, False)
+      '2014'            -> (2014, 2014, False)
+      порожньо          -> (None, None, False)
+    Роки беремо як 4-значні токени; відкритий діапазон — коли рядок закінчується
+    дефісом."""
+    s = (years or '').strip()
     if not s:
         return None, None, False
-    m = re.match(r'^(\d{4})\s*-\s*(\d{4})$', s)
-    if m:
-        return int(m.group(1)), int(m.group(2)), False
-    m = re.match(r'^(\d{4})\s*-\s*$', s)
-    if m:
-        return int(m.group(1)), None, True
-    m = re.match(r'^(\d{4})$', s)
-    if m:
-        return int(m.group(1)), int(m.group(1)), False
-    return None, None, False
+    yrs = re.findall(r'(\d{4})', s)
+    if not yrs:
+        return None, None, False
+    ys = int(yrs[0])
+    if re.search(r'-\s*$', s):          # відкритий правий край
+        return ys, None, True
+    if len(yrs) >= 2:
+        return ys, int(yrs[-1]), False
+    return ys, ys, False
+
+
+def to_int_or_none(v, ctx):
+    if v is None:
+        return None
+    if not v.isdigit():
+        raise SystemExit(f'ABORT: нечисловий рік {v!r} ({ctx}).')
+    return int(v)
+
+
+def to_bool_or_none(v, ctx):
+    if v is None:
+        return None
+    t = v.strip().lower()
+    if t in ('true', 't', '1', 'yes'):
+        return True
+    if t in ('false', 'f', '0', 'no'):
+        return False
+    raise SystemExit(f'ABORT: нерозпізнаний year_open {v!r} ({ctx}).')
 
 
 def transform(header, data_rows, valid_spec_codes):
@@ -113,9 +139,18 @@ def transform(header, data_rows, valid_spec_codes):
         rec['brand'] = brand
         rec['model'] = model
 
-        ys, ye, yo = parse_years(rec['years'])
-        if rec['years'] and ys is None and not yo:
-            bad_years.append((rid, rec['years']))
+        ctx = f'id={rid} {brand} {model}'
+        ys_raw, ye_raw, yo_raw = rec['year_start'], rec['year_end'], rec['year_open']
+        if ys_raw is None and ye_raw is None and yo_raw is None:
+            # усі три порожні -> перерахувати зі `years` (новий рядок)
+            ys, ye, yo = parse_years(rec['years'])
+            if rec['years'] and ys is None:
+                bad_years.append((rid, rec['years']))
+        else:
+            ys = to_int_or_none(ys_raw, ctx)
+            ye = to_int_or_none(ye_raw, ctx)
+            yo = to_bool_or_none(yo_raw, ctx)
+            yo = False if yo is None else yo  # year_open — NOT NULL
         rec['year_start'], rec['year_end'], rec['year_open'] = ys, ye, yo
 
         sc = rec['spec_code']
