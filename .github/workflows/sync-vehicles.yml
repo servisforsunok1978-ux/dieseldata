@@ -9,6 +9,10 @@ on:
         description: 'Dry-run (тільки статистика, без запису в БД)'
         type: boolean
         default: false
+      diff:
+        description: 'Diff (сирий-аркуш vs БД, без запису)'
+        type: boolean
+        default: false
 
 jobs:
   sync:
@@ -22,6 +26,7 @@ jobs:
       - run: python scripts/sync_vehicles.py
         env:
           DRY_RUN: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '1' || '0' }}
+          DIFF: ${{ (github.event_name == 'workflow_dispatch' && inputs.diff) && '1' || '0' }}
           SHEET_ID_VEHICLES: ${{ vars.SHEET_ID_VEHICLES }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           # Компоненти підключення до Postgres. Секрет — лише пароль (сирий,

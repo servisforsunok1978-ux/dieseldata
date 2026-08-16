@@ -249,10 +249,54 @@ def replace_all(conn_params, rows):
         # commit — автоматично при виході з with conn
 
 
+def diff_against_db(conn_params, header, data_rows):
+    """Діагностика: показати кожну клітинку, де СИРЕ значення аркуша != значення
+    в БД (усе як текст, NULL -> ''). Розкриває, що саме нормалізує clean() під
+    час синку. Нічого не пише."""
+    import psycopg2
+
+    idx = {n: header.index(n) for n in SHEET_COLS if n in header}
+    need = max(idx.values())
+    dbrows = {}
+    with psycopg2.connect(**conn_params) as conn:
+        with conn.cursor() as cur:
+            cur.execute(f'SELECT {",".join(SHEET_COLS)} FROM public.vehicles;')
+            for rec in cur.fetchall():
+                d = {c: ('' if v is None else str(v)) for c, v in zip(SHEET_COLS, rec)}
+                dbrows[d['id']] = d
+
+    diffs, only_sheet = [], []
+    seen = set()
+    for cells in data_rows:
+        if len(cells) <= need:
+            cells = cells + [''] * (need + 1 - len(cells))
+        rid = (cells[idx['id']] or '').strip()
+        if not rid:
+            continue
+        seen.add(rid)
+        d = dbrows.get(rid)
+        if d is None:
+            only_sheet.append(rid)
+            continue
+        for c in SHEET_COLS:
+            raw = cells[idx[c]]
+            raw = '' if raw is None else str(raw)
+            if raw != d[c]:
+                diffs.append((rid, c, d[c], raw))
+    only_db = sorted(set(dbrows) - seen, key=lambda x: int(x) if x.isdigit() else 0)
+    print(f'Рядків тільки в аркуші (нема в БД): {only_sheet}')
+    print(f'Рядків тільки в БД (нема в аркуші): {only_db}')
+    print(f'Клітинок-розбіжностей (raw-аркуш != БД): {len(diffs)}')
+    for rid, c, dv, raw in diffs[:300]:
+        print(f'  id={rid} {c}: DB={dv!r}  SHEET_raw={raw!r}')
+
+
 def parse_args(argv):
     p = argparse.ArgumentParser(description='Sync vehicles: Sheets -> Supabase')
     p.add_argument('--dry-run', action='store_true',
                    help='розпарсувати й показати статистику без запису')
+    p.add_argument('--diff', action='store_true',
+                   help='показати розбіжності сирий-аркуш vs БД (без запису)')
     p.add_argument('--csv', metavar='PATH', default=os.environ.get('CSV_PATH'),
                    help='читати з локального CSV-семпла замість Google API')
     p.add_argument('--skip-fk-check', action='store_true',
@@ -263,6 +307,7 @@ def parse_args(argv):
 def main(argv=None):
     args = parse_args(argv if argv is not None else sys.argv[1:])
     dry_run = args.dry_run or os.environ.get('DRY_RUN') == '1'
+    do_diff = args.diff or os.environ.get('DIFF') == '1'
 
     if args.csv:
         print(f'Джерело: локальний CSV {args.csv}')
@@ -277,6 +322,10 @@ def main(argv=None):
         sa_info = json.loads(sa_raw)
         print(f'Джерело: Google Sheet {sheet_id} / {SHEET_NAME}')
         header, data = fetch_sheet(sheet_id, sa_info)
+
+    if do_diff:
+        diff_against_db(db_conn_params(), header, data)
+        return
 
     # Валідні spec_code для FK — читаємо з БД (крім --skip-fk-check).
     valid = None
