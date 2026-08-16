@@ -148,3 +148,42 @@ engine | body | manufacturer | injector | pump | vin
 
 Змінні/секрети: variable `SHEET_ID_VEHICLES`; секрети `GOOGLE_SERVICE_ACCOUNT_JSON`,
 `SUPABASE_DB_PASSWORD` (спільні з piezo).
+
+---
+
+# sync_solenoid — Google Sheets → Supabase (`public.bosch_solenoid_inj`)
+
+Те саме дзеркало для таблиці спек solenoid-форсунок (776 рядків). Google-таблиця —
+джерело істини; `bosch_solenoid_inj` щодня дзеркалить її (повна транзакційна заміна).
+
+**Google-таблиця:** `dieseldata · bosch_solenoid_inj (source of truth)`, вкладка
+`bosch_solenoid_inj`, поділена з СА `sheets-sync@dieseldata-sync.iam.gserviceaccount.com`.
+Id — у GitHub variable `SHEET_ID_SOLENOID`.
+
+## Колонки аркуша (усі 10; generated-колонок нема)
+
+```
+code | cri_type | fov_code | nozzle_dlla | nozzle_0433 |
+nut | washer | oem | oe_number | valve_cap
+```
+
+## Правила
+
+1. **`code`** — PRIMARY KEY (повний `0445110xxx`). Дубль `code` → ABORT.
+2. **Фільтр рядків:** лишаємо тільки ті, де `code` починається з `0445` (відсікає
+   заголовок/порожні/службові рядки).
+3. **Чистка:** стискання пробілів + trim, `none`-літерал → `NULL`. (Кириличну `С`
+   у `washer` **не** нормалізуємо — round-trip точний; на bootstrap нормалізувалась
+   1 клітинка з провідним пробілом у `oe_number`.)
+4. **Запобіжники:** `MIN_ROWS` (за замовч. `700`) + `MAX_SHRINK_FRAC` (20%).
+5. Вхідних FK на таблицю немає (`vehicles.spec_code` видалено), тож TRUNCATE
+   безпечний. Зіставлення авто↔спека йде за `0445`-токеном `injector` у RPC —
+   заміна цього не торкається (той самий набір `code`).
+
+## Скрипти / розклад
+
+- `scripts/sync_solenoid.py` (прапорці `--dry-run`, `--diff`, `--csv`),
+  `scripts/bootstrap_solenoid.py` (info-режим друкує email СА; `--sheet-id` + `--create`).
+- `.github/workflows/sync-solenoid.yml` — cron `45 6 * * *` (06:45 UTC) +
+  `workflow_dispatch` (`dry_run`, `diff`); `bootstrap-solenoid.yml` — ручний.
+- Env: variable `SHEET_ID_SOLENOID`; секрети спільні з piezo/vehicles.
