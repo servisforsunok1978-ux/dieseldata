@@ -77,3 +77,71 @@ python scripts/sync_piezo.py --csv sample.csv --dry-run
 - secret `SUPABASE_DB_URL`
 - secret `GOOGLE_SERVICE_ACCOUNT_JSON`
 - variable `SHEET_ID`
+
+---
+
+# sync_vehicles — Google Sheets → Supabase (`public.vehicles`)
+
+Те саме дзеркало, але для таблиці авто. Google-таблиця — джерело істини;
+`public.vehicles` щодня дзеркалить її (повна транзакційна заміна).
+
+**Google-таблиця:** `dieseldata · vehicles (source of truth)`, вкладка `vehicles`.
+Створена у Drive власника, поділена з сервісним акаунтом
+`sheets-sync@dieseldata-sync.iam.gserviceaccount.com` (роль Редактор).
+Id — у GitHub variable `SHEET_ID_VEHICLES`.
+
+## Колонки аркуша (16 — усе, крім generated `search_vector`)
+
+```
+id | brand | model | generation | volume | years |
+year_start | year_end | year_open |
+engine | body | manufacturer | injector | pump | vin | spec_code
+```
+
+Дзеркалимо всі 16 як є (точний round-trip). `search_vector` не чіпаємо — БД
+рахує її сама (GENERATED ALWAYS).
+
+## Правила (специфіка vehicles)
+
+1. **`id`** — PK без sequence: береться з аркуша як є. Дубль id → ABORT. Рядок
+   без id → ABORT (у логу друкується `next_free_id` для нового авто).
+2. **`brand`, `model`** — NOT NULL: рядок без них відкидається (службові/порожні).
+3. **`spec_code`** — FK на `bosch_solenoid_inj.code`. Невідомий код → `NULL` +
+   рядок у звіт (не ABORT, не вигадуємо). Валідні коди читаються з БД перед синком.
+4. **`year_start/year_end/year_open`** — дзеркаляться як є. Перераховуються зі
+   `years` **лише коли всі три порожні** (нове авто). `parse_years` розуміє
+   `YYYY`, `YYYY-YYYY`, `YYYY-`, `MM/YYYY-MM/YYYY`, `MM/YYYY-`.
+5. **Чистка:** стискання пробілів + trim, `none`-літерал → `NULL`. (На bootstrap
+   нормалізувалось 6 «брудних» клітинок — подвійні пробіли в `pump`, службовий
+   перенос у `vin`; символи номерів не зачіпались.)
+6. **Запобіжники:** абсолютний `MIN_ROWS` (за замовч. `220`) + відносний
+   `MAX_SHRINK_FRAC` (20%), як у piezo.
+
+## Скрипти
+
+| Файл | Призначення |
+|------|-------------|
+| `scripts/bootstrap_vehicles.py` | одноразовий дамп `vehicles` → існуюча Google-таблиця (пише у вкладку `vehicles`). Info-режим без `--sheet-id` друкує email сервісного акаунта. |
+| `scripts/sync_vehicles.py` | щоденний синк Sheet → `vehicles`. Прапорці: `--dry-run`, `--diff` (сирий-аркуш vs БД, без запису), `--csv PATH`, `--skip-fk-check`. |
+
+## Env-змінні (vehicles)
+
+Ті самі, що в piezo, окрім id таблиці:
+
+| Змінна | Призначення |
+|--------|-------------|
+| `SHEET_ID_VEHICLES` | id Google-таблиці vehicles |
+| `GOOGLE_SERVICE_ACCOUNT_JSON`, `SUPABASE_DB_*` | як у piezo |
+| `OWNER_EMAIL` | *(лише bootstrap, info-режим не потребує)* кому шарити |
+| `DRY_RUN=1` / `DIFF=1` | те саме, що `--dry-run` / `--diff` |
+| `MIN_ROWS` | за замовч. `220` |
+
+## Розклад (GitHub Actions)
+
+- `.github/workflows/sync-vehicles.yml` — cron `30 6 * * *` (щодня 06:30 UTC) +
+  ручний `workflow_dispatch` з інпутами `dry_run` і `diff`.
+- `.github/workflows/bootstrap-vehicles.yml` — лише ручний; наповнює наявну
+  таблицю (input `sheet_id`) або друкує email СА (без `sheet_id`).
+
+Змінні/секрети: variable `SHEET_ID_VEHICLES`; секрети `GOOGLE_SERVICE_ACCOUNT_JSON`,
+`SUPABASE_DB_PASSWORD` (спільні з piezo).
