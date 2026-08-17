@@ -14,14 +14,15 @@ sync_vehicles.py / sync_piezo.py.
   --diff     або  DIFF=1       — розбіжності сирий-аркуш vs БД (без запису)
   --csv PATH або  CSV_PATH=... — читати з локального CSV-семпла замість Google API
 
-Особливості bosch_solenoid_inj:
-  * усі колонки text; generated-колонок немає.
-  * `code` — PRIMARY KEY (повний номер 0445110xxx). Дубль code -> ABORT.
-  * фільтр рядків: лишаємо тільки ті, де code починається з `0445` (відсікає
-    заголовок/порожні/службові рядки аркуша).
-  * вхідних FK на таблицю немає (vehicles.spec_code видалено 2026-08-16), тож
-    TRUNCATE безпечний. Зіставлення авто↔спека йде за 0445-токеном injector у
-    RPC search_vehicles — на нього ця заміна не впливає (той самий набір code).
+Особливості bosch_solenoid_inj (з 2026-08-17 — злиття code+oem):
+  * усі колонки text; generated-колонок немає; PK немає (як bosch_piezo_inj).
+  * `oem` — список номерів через пробіл; ПЕРШИЙ токен = головний номер
+    (колишній `code`, 0445110xxx). Він і є логічним ключем. Дубль ключа -> ABORT.
+  * фільтр рядків: лишаємо тільки ті, де перший токен oem починається з `0445`
+    (відсікає заголовок/порожні/службові рядки аркуша).
+  * вхідних FK на таблицю немає, тож TRUNCATE безпечний. Зіставлення авто↔спека
+    йде за входженням 0445-токена injector у список oem (RPC search_vehicles) —
+    аналогічно bosch_piezo_inj.oem_number.
 """
 import argparse
 import csv
@@ -35,10 +36,15 @@ SHEET_NAME = 'bosch_solenoid_inj'
 MIN_ROWS = int(os.environ.get('MIN_ROWS', '700'))          # поточно 776
 MAX_SHRINK_FRAC = float(os.environ.get('MAX_SHRINK_FRAC', '0.2'))
 
-# Заголовки аркуша == імена колонок БД (bootstrap так їх і створює). Усі 10.
-SHEET_COLS = ['code', 'cri_type', 'fov_code', 'nozzle_dlla', 'nozzle_0433',
-              'nut', 'washer', 'oem', 'oe_number', 'valve_cap']
+# Заголовки аркуша == імена колонок БД (bootstrap так їх і створює). Усі 9.
+SHEET_COLS = ['oem', 'cri_type', 'fov_code', 'nozzle_dlla', 'nozzle_0433',
+              'nut', 'washer', 'oe_number', 'valve_cap']
 INSERT_COLS = SHEET_COLS  # усе, що читаємо, те й пишемо (generated-колонок нема)
+
+
+def key_of(oem):
+    """Логічний ключ рядка = перший токен oem (колишній `code`)."""
+    return (oem or '').split(' ', 1)[0]
 
 
 def clean(v):
@@ -60,14 +66,15 @@ def transform(header, data_rows):
     for cells in data_rows:
         if len(cells) <= need:
             cells = cells + [''] * (need + 1 - len(cells))
-        code = clean(cells[idx['code']])
-        if not code or not code.startswith('0445'):
+        oem = clean(cells[idx['oem']])
+        key = key_of(oem)
+        if not key or not key.startswith('0445'):
             continue  # заголовок/порожні/службові рядки
-        if code in seen:
-            raise SystemExit(f'ABORT: дубль code {code} (code — PK).')
-        seen.add(code)
+        if key in seen:
+            raise SystemExit(f'ABORT: дубль головного номера {key} (перший токен oem).')
+        seen.add(key)
         rec = {c: clean(cells[idx[c]]) for c in SHEET_COLS}
-        rec['code'] = code
+        rec['oem'] = oem
         out.append(rec)
     return out
 
@@ -164,30 +171,30 @@ def diff_against_db(conn_params, header, data_rows):
             cur.execute(f'SELECT {",".join(SHEET_COLS)} FROM public.bosch_solenoid_inj;')
             for rec in cur.fetchall():
                 d = {c: ('' if v is None else str(v)) for c, v in zip(SHEET_COLS, rec)}
-                dbrows[d['code']] = d
+                dbrows[key_of(d['oem'])] = d
 
     diffs, only_sheet, seen = [], [], set()
     for cells in data_rows:
         if len(cells) <= need:
             cells = cells + [''] * (need + 1 - len(cells))
-        code = (cells[idx['code']] or '').strip()
-        if not code:
+        key = key_of((cells[idx['oem']] or '').strip())
+        if not key:
             continue
-        seen.add(code)
-        d = dbrows.get(code)
+        seen.add(key)
+        d = dbrows.get(key)
         if d is None:
-            only_sheet.append(code)
+            only_sheet.append(key)
             continue
         for c in SHEET_COLS:
             raw = '' if cells[idx[c]] is None else str(cells[idx[c]])
             if raw != d[c]:
-                diffs.append((code, c, d[c], raw))
+                diffs.append((key, c, d[c], raw))
     only_db = sorted(set(dbrows) - seen)
     print(f'Рядків тільки в аркуші (нема в БД): {only_sheet}')
     print(f'Рядків тільки в БД (нема в аркуші): {only_db}')
     print(f'Клітинок-розбіжностей (raw-аркуш != БД): {len(diffs)}')
-    for code, c, dv, raw in diffs[:300]:
-        print(f'  code={code} {c}: DB={dv!r}  SHEET_raw={raw!r}')
+    for key, c, dv, raw in diffs[:300]:
+        print(f'  key={key} {c}: DB={dv!r}  SHEET_raw={raw!r}')
 
 
 def parse_args(argv):
@@ -226,12 +233,13 @@ def main(argv=None):
 
     rows = transform(header, data)
     print(f'Розпарсовано рядків: {len(rows)}')
-    print('По серіях (code[:7]):', dict(sorted(Counter(r['code'][:7] for r in rows).items())))
+    keys = [key_of(r['oem']) for r in rows]
+    print('По серіях (key[:7]):', dict(sorted(Counter(k[:7] for k in keys).items())))
 
-    # Санітарна перевірка: усі code починаються з 0445 (гарантовано transform)
-    bad = [r['code'] for r in rows if not r['code'].startswith('0445')]
+    # Санітарна перевірка: усі ключі (перший токен oem) починаються з 0445
+    bad = [k for k in keys if not k.startswith('0445')]
     if bad:
-        raise SystemExit(f'ABORT: є code не з 0445: {bad[:5]}')
+        raise SystemExit(f'ABORT: є ключ не з 0445: {bad[:5]}')
 
     if len(rows) < MIN_ROWS:
         raise SystemExit(f'ABORT: рядків {len(rows)} < {MIN_ROWS}. Таблицю не чіпаю.')

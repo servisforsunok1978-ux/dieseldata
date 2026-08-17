@@ -14,8 +14,9 @@ Env:
   GOOGLE_SERVICE_ACCOUNT_JSON, SHEET_ID_SOLENOID (або --sheet-id),
   SUPABASE_DB_PASSWORD (+HOST/USER/PORT/NAME).
 
-Вигружаються всі 10 колонок (generated-колонок у таблиці немає):
-  code, cri_type, fov_code, nozzle_dlla, nozzle_0433, nut, washer, oem,
+Вигружаються всі 9 колонок (generated-колонок у таблиці немає; з 2026-08-17
+code злито в oem — перший токен oem це колишній головний номер):
+  oem, cri_type, fov_code, nozzle_dlla, nozzle_0433, nut, washer,
   oe_number, valve_cap
 """
 import argparse
@@ -24,8 +25,8 @@ import os
 import sys
 
 SHEET_TAB = 'bosch_solenoid_inj'
-EXPORT_COLS = ['code', 'cri_type', 'fov_code', 'nozzle_dlla', 'nozzle_0433',
-               'nut', 'washer', 'oem', 'oe_number', 'valve_cap']
+EXPORT_COLS = ['oem', 'cri_type', 'fov_code', 'nozzle_dlla', 'nozzle_0433',
+               'nut', 'washer', 'oe_number', 'valve_cap']
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
 
@@ -53,7 +54,8 @@ def fetch_rows(conn_params):
     cols_sql = ', '.join(EXPORT_COLS)
     with psycopg2.connect(**conn_params) as conn:
         with conn.cursor() as cur:
-            cur.execute(f'SELECT {cols_sql} FROM public.bosch_solenoid_inj ORDER BY code;')
+            cur.execute(f'SELECT {cols_sql} FROM public.bosch_solenoid_inj '
+                        f'ORDER BY split_part(oem, \' \', 1);')
             return cur.fetchall()
 
 
