@@ -154,11 +154,14 @@ select.set{border-color:#41506680}
 }
 .card:hover{border-color:#3a4658}
 .card-top{padding:14px 16px 12px;border-bottom:1px solid var(--line-soft);display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
-.card-desc{min-width:0;line-height:1.35}
+.card-desc{min-width:0;line-height:1.4;display:flex;flex-wrap:wrap;align-items:baseline;gap:5px 22px}
 .card-title{font-weight:700;font-size:15.5px;letter-spacing:.01em}
-.card-specs{font-family:var(--ui);font-size:15.5px;font-weight:500;color:var(--txt);letter-spacing:.01em}
-.spec-year{font-family:var(--ui);font-size:14px;font-weight:500;color:var(--txt);letter-spacing:.01em}
-.spec-code{font-family:var(--ui);font-size:10px;font-weight:300;color:var(--txt);letter-spacing:.02em}
+.g-id .vol{font-family:var(--ui);font-size:15px;font-weight:500;color:var(--txt-2);letter-spacing:.01em;margin-left:7px}
+.g-period{font-family:var(--ui);font-size:13.5px;font-weight:500;color:var(--txt-2);letter-spacing:.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.g-codes{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:8px}
+.g-codes .eng{font-family:var(--mono);font-size:11px;color:var(--amber);border:1px solid var(--amber-dim);background:rgba(246,166,35,.08);border-radius:5px;padding:1px 6px;letter-spacing:.02em}
+.g-codes .gen{font-family:var(--ui);font-size:11px;font-weight:400;color:var(--muted);letter-spacing:.04em}
+.g-codes .bodyc{font-family:var(--mono);font-size:11px;color:var(--txt-2);border:1px solid var(--line-soft);border-radius:5px;padding:1px 6px;letter-spacing:.02em}
 .chip.vin{margin-left:auto;font-family:var(--mono);letter-spacing:-.01em;display:inline-flex;align-items:center;gap:6px;color:var(--txt-2);cursor:pointer;transition:.12s}
 .chip.vin:hover{border-color:#3a4658;color:var(--txt)}
 .chip.vin .chip-k{font-family:var(--ui);font-size:9.5px;font-weight:700;letter-spacing:.1em;color:var(--muted)}
@@ -655,6 +658,10 @@ function readoutPart(val){
   if(!val) return '<span class="v empty">—</span>';
   return `<button class="copy" data-copy="${esc(val)}"><span class="v">${esc(val)}</span>${CPI}</button>`;
 }
+/* Покоління: римський номер -> "Gen-IV"; інакше лишаємо як є (напр. текст) */
+function mkGen(g){g=String(g||'').trim();return /^[IVXLCDM]+$/i.test(g)?'Gen-'+g.toUpperCase():g;}
+/* Роки: дефіс-роздільник діапазону -> коротке тире для читабельності */
+function fmtYears(y){return String(y||'').replace(/-/g,'–');}
 function readoutInjector(r){
   if(!r.injector) return '<span class="v empty">—</span>';
   const copyBtn=`<button class="copy" data-copy="${esc(r.injector)}"><span class="v">${esc(r.injector)}</span>${CPI}</button>`;
@@ -774,17 +781,22 @@ function renderResults(){
     cnt.innerHTML=`Авто не знайдено · характеристики форсунки: <b class="amber">${specOnly.length}</b>`;
   }
   rows.forEach(r=>{
-    const card=el('div','card');const sp=[];
-    if(r.generation)sp.push(`<span class="card-specs">${esc(r.generation)}</span>`);
-    if(r.volume)sp.push(`<span class="card-specs">${esc(r.volume)}</span>`);
-    if(r.years)sp.push(`<span class="spec-year">${esc(r.years)}</span>`);
-    if(r.engine)sp.push(`<span class="spec-code">${esc(r.engine)}</span>`);
-    if(r.body)sp.push(`<span class="spec-code">${esc(r.body)}</span>`);
-    const specsHtml=sp.join(' ');
+    const card=el('div','card');
+    /* Блок 1 — хто це: марка+модель (жирний) + об'єм */
+    const gId=`<span class="g g-id"><span class="card-title">${esc(r.model||r.brand)}</span>`
+      +(r.volume?`<span class="vol">${esc(r.volume)}</span>`:'')+`</span>`;
+    /* Блок 2 — коли: роки випуску */
+    const gPeriod=r.years?`<span class="g g-period">${esc(fmtYears(r.years))}</span>`:'';
+    /* Блок 3 — коди: [двигун(и)] покоління(MkIII) кузов */
+    const codes=[];
+    if(r.engine)codes.push(`<span class="eng">[${esc(r.engine)}]</span>`);
+    if(r.generation)codes.push(`<span class="gen">${esc(mkGen(r.generation))}</span>`);
+    if(r.body)codes.push(`<span class="bodyc">${esc(r.body)}</span>`);
+    const gCodes=codes.length?`<span class="g g-codes">${codes.join('')}</span>`:'';
     const vinChip=r.vin?`<button class="chip vin" data-copy="${esc(r.vin)}" title="Копіювати VIN"><span class="chip-k">VIN</span>${esc(r.vin)}${CPI}</button>`:'';
     card.innerHTML=`
       <div class="card-top">
-        <span class="card-desc"><span class="card-title">${esc(r.model||r.brand)}</span>${specsHtml?' '+specsHtml:''}</span>
+        <span class="card-desc">${gId}${gPeriod}${gCodes}</span>
         ${vinChip}
       </div>
       <div class="readouts">
