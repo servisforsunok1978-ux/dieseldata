@@ -515,7 +515,7 @@ const mfrColor=m=>MFR_COLORS[m]||'#8a97a8';
 let state={brand:'',model:'',volume:'',years:'',generation:'',engine:'',body:'',q:''};
 let optionsCache={};            // key -> [[value,cnt],...]
 let brandsMeta={total:0,count:0};
-let specStore={};               // code -> spec object (Bosch Solenoid)
+let specStore={};               // головний номер (1-й токен oem) -> spec (Bosch Solenoid)
 let piezoStore={};              // 0445-токен -> рядок спеки (Bosch Piezo)
 let piezoRows=[];               // усі рядки piezo (для пошуку за oem/oe без авто)
 let resultState={mode:'inactive'};
@@ -554,7 +554,7 @@ async function refreshResults(){
     else resultState={mode:'error',msg:m};
     return;
   }
-  (data||[]).forEach(r=>{ if(r.spec&&r.spec.code) specStore[r.spec.code]=r.spec; });
+  (data||[]).forEach(r=>{ if(r.spec&&r.spec.oem){ const code=r.spec.oem.split(/\s+/)[0]; specStore[code]=r.spec; } });
   resultState={mode:'ok',rows:data||[]};
 }
 
@@ -658,8 +658,8 @@ function readoutPart(val){
 function readoutInjector(r){
   if(!r.injector) return '<span class="v empty">—</span>';
   const copyBtn=`<button class="copy" data-copy="${esc(r.injector)}"><span class="v">${esc(r.injector)}</span>${CPI}</button>`;
-  if(r.spec&&r.spec.code){
-    const code=r.spec.code;
+  if(r.spec&&r.spec.oem){
+    const code=r.spec.oem.split(/\s+/)[0];
     return `<span class="injwrap" data-spec="${esc(code)}">${copyBtn}<button class="specbtn" data-spec="${esc(code)}" aria-label="Характеристики форсунки">i</button></span>`;
   }
   const ptok=piezoMatch(r.injector);
