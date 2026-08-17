@@ -33,8 +33,8 @@ import sys
 from collections import Counter
 
 SHEET_NAME = 'bosch_solenoid_inj'
-MIN_ROWS = int(os.environ.get('MIN_ROWS', '700'))          # поточно 776
-MAX_SHRINK_FRAC = float(os.environ.get('MAX_SHRINK_FRAC', '0.2'))
+MIN_ROWS = int(os.environ.get('MIN_ROWS') or '450')        # поточно 514 (аркуш почищено 2026-08-17)
+MAX_SHRINK_FRAC = float(os.environ.get('MAX_SHRINK_FRAC') or '0.2')
 
 # Заголовки аркуша == імена колонок БД (bootstrap так їх і створює). Усі 9.
 SHEET_COLS = ['oem', 'cri_type', 'fov_code', 'nozzle_dlla', 'nozzle_0433',
