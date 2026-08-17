@@ -13,6 +13,14 @@ on:
         description: 'Diff (сирий-аркуш vs БД, без запису)'
         type: boolean
         default: false
+      min_rows:
+        description: 'Мін. рядків (порожньо = дефолт скрипта 450)'
+        type: string
+        default: ''
+      max_shrink_frac:
+        description: 'Макс. просідання, напр. 0.4 для великого чищення (порожньо = 0.2)'
+        type: string
+        default: ''
 
 jobs:
   sync:
@@ -27,6 +35,8 @@ jobs:
         env:
           DRY_RUN: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '1' || '0' }}
           DIFF: ${{ (github.event_name == 'workflow_dispatch' && inputs.diff) && '1' || '0' }}
+          MIN_ROWS: ${{ inputs.min_rows }}
+          MAX_SHRINK_FRAC: ${{ inputs.max_shrink_frac }}
           SHEET_ID_SOLENOID: ${{ vars.SHEET_ID_SOLENOID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           SUPABASE_DB_HOST: aws-0-eu-west-3.pooler.supabase.com
