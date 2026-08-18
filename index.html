@@ -728,10 +728,10 @@ function showSpec(w,anchor){
 }
 function hideSpec(){specPop.classList.remove('show');}
 let specPinned=false;
-document.addEventListener('mouseover',e=>{const w=e.target.closest('.injwrap');
-  if(w&&!specPinned){const c=popupFor(w);if(specPop.classList.contains('show')&&c&&specPop.dataset.code===c.key)return;showSpec(w,w);}});
-document.addEventListener('mouseout',e=>{const w=e.target.closest('.injwrap');
-  if(w&&!specPinned){const to=e.relatedTarget;if(!to||!to.closest||!to.closest('#specPop'))hideSpec();}});
+document.addEventListener('mouseover',e=>{const b=e.target.closest('.specbtn');
+  if(b&&!specPinned){const w=b.closest('.injwrap')||b;const c=popupFor(w);if(specPop.classList.contains('show')&&c&&specPop.dataset.code===c.key)return;showSpec(w,w);}});
+document.addEventListener('mouseout',e=>{const b=e.target.closest('.specbtn');
+  if(b&&!specPinned){const to=e.relatedTarget;if(!to||!to.closest||!to.closest('#specPop'))hideSpec();}});
 document.addEventListener('click',e=>{const b=e.target.closest('.specbtn');
   if(b){e.stopPropagation();specPinned=true;const w=b.closest('.injwrap');showSpec(w,w);return;}
   if(specPinned&&!e.target.closest('#specPop')){specPinned=false;hideSpec();}});
