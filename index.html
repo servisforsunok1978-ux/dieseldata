@@ -701,11 +701,11 @@ function readoutInjector(r){
   const copyBtn=`<button class="copy" data-copy="${esc(r.injector)}"><span class="v">${esc(r.injector)}</span>${CPI}</button>`;
   if(r.spec&&r.spec.oem){
     const code=r.spec.oem.split(/\s+/)[0];
-    return `<span class="injwrap" data-spec="${esc(code)}">${copyBtn}<button class="specbtn" data-spec="${esc(code)}" aria-label="Характеристики форсунки">i</button></span>`;
+    return `<span class="injwrap" data-spec="${esc(code)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span>`;
   }
   const ptok=piezoMatch(r.injector);
   if(ptok){
-    return `<span class="injwrap" data-piezo="${esc(ptok)}">${copyBtn}<button class="specbtn" data-piezo="${esc(ptok)}" aria-label="Характеристики форсунки">i</button></span>`;
+    return `<span class="injwrap" data-piezo="${esc(ptok)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span>`;
   }
   return copyBtn;
 }
@@ -744,15 +744,31 @@ function piezoHtml(tok){
   }).join('');
   return `<div class="sp-title">${esc(tok)}</div>${rows}`;
 }
-/* контент попапа за атрибутами обгортки: data-spec → solenoid, data-piezo → piezo */
-function popupFor(w){
-  if(w.dataset.spec) return {key:'s:'+w.dataset.spec, html:specHtml(w.dataset.spec)};
-  if(w.dataset.piezo) return {key:'p:'+w.dataset.piezo, html:piezoHtml(w.dataset.piezo)};
+/* OE/OEM попап (кнопка «c»): solenoid → analog(OEM)+oe_number; piezo → oem_number+oe_number */
+function oeRows(pairs){
+  return pairs.map(([lab,v])=>{v=v||'';
+    return `<div class="sp-row"><span class="sp-k">${esc(lab)}</span><span class="sp-v${v?'':' dash'}">${esc(v||'—')}</span></div>`;
+  }).join('');
+}
+function oeHtml(code){
+  const spec=specStore[code]||{};
+  return `<div class="sp-title">${esc(code)}</div>`+oeRows([['OEM',spec.analog],['OE number',spec.oe_number]]);
+}
+function piezoOeHtml(tok){
+  const spec=piezoStore[tok]||{};
+  return `<div class="sp-title">${esc(tok)}</div>`+oeRows([['OEM',spec.oem_number],['OE number',spec.oe_number]]);
+}
+/* контент попапа за атрибутами обгортки: data-spec → solenoid, data-piezo → piezo.
+   btn з класом .oebtn → OE/OEM попап замість характеристик */
+function popupFor(w,btn){
+  const oe=!!(btn&&btn.classList.contains('oebtn'));
+  if(w.dataset.spec) return {key:(oe?'so:':'s:')+w.dataset.spec, html:oe?oeHtml(w.dataset.spec):specHtml(w.dataset.spec)};
+  if(w.dataset.piezo) return {key:(oe?'po:':'p:')+w.dataset.piezo, html:oe?piezoOeHtml(w.dataset.piezo):piezoHtml(w.dataset.piezo)};
   return null;
 }
 const specPop=$('#specPop');
-function showSpec(w,anchor){
-  const c=popupFor(w); if(!c) return;
+function showSpec(w,anchor,btn){
+  const c=popupFor(w,btn); if(!c) return;
   specPop.dataset.code=c.key;specPop.innerHTML=c.html;specPop.classList.add('show');
   const r=(anchor||w).getBoundingClientRect();
   const pw=specPop.offsetWidth,ph=specPop.offsetHeight,vw=innerWidth,vh=innerHeight,m=8;
@@ -763,11 +779,11 @@ function showSpec(w,anchor){
 function hideSpec(){specPop.classList.remove('show');}
 let specPinned=false;
 document.addEventListener('mouseover',e=>{const b=e.target.closest('.specbtn');
-  if(b&&!specPinned){const w=b.closest('.injwrap')||b;const c=popupFor(w);if(specPop.classList.contains('show')&&c&&specPop.dataset.code===c.key)return;showSpec(w,w);}});
+  if(b&&!specPinned){const w=b.closest('.injwrap')||b;const c=popupFor(w,b);if(specPop.classList.contains('show')&&c&&specPop.dataset.code===c.key)return;showSpec(w,b,b);}});
 document.addEventListener('mouseout',e=>{const b=e.target.closest('.specbtn');
   if(b&&!specPinned){const to=e.relatedTarget;if(!to||!to.closest||!to.closest('#specPop'))hideSpec();}});
 document.addEventListener('click',e=>{const b=e.target.closest('.specbtn');
-  if(b){e.stopPropagation();specPinned=true;const w=b.closest('.injwrap');showSpec(w,w);return;}
+  if(b){e.stopPropagation();specPinned=true;const w=b.closest('.injwrap');showSpec(w,b,b);return;}
   if(specPinned&&!e.target.closest('#specPop')){specPinned=false;hideSpec();}});
 addEventListener('scroll',()=>{if(!specPinned)hideSpec();},true);
 
@@ -849,14 +865,14 @@ function renderResults(){
 function piezoSpecCard(m){
   const card=el('div','card speccard');
   const copyBtn=`<button class="copy" data-copy="${esc(m.tok)}"><span class="v">${esc(m.tok)}</span>${CPI}</button>`;
-  card.innerHTML=`<div class="ro inj specrow"><span class="injwrap" data-piezo="${esc(m.tok)}">${copyBtn}<button class="specbtn" data-piezo="${esc(m.tok)}" aria-label="Характеристики форсунки">i</button></span></div>`;
+  card.innerHTML=`<div class="ro inj specrow"><span class="injwrap" data-piezo="${esc(m.tok)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span></div>`;
   return card;
 }
 /* те саме для Bosch Solenoid без авто — попап через data-spec (specHtml/specStore) */
 function solenoidSpecCard(m){
   const card=el('div','card speccard');
   const copyBtn=`<button class="copy" data-copy="${esc(m.tok)}"><span class="v">${esc(m.tok)}</span>${CPI}</button>`;
-  card.innerHTML=`<div class="ro inj specrow"><span class="injwrap" data-spec="${esc(m.tok)}">${copyBtn}<button class="specbtn" data-spec="${esc(m.tok)}" aria-label="Характеристики форсунки">i</button></span></div>`;
+  card.innerHTML=`<div class="ro inj specrow"><span class="injwrap" data-spec="${esc(m.tok)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span></div>`;
   return card;
 }
 
