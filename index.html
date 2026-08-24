@@ -967,8 +967,13 @@ $('#rs_save').onclick=async()=>{
   if(data.session){toast('Пароль змінено');onLogin(data.session);}
 };
 
+let currentUserId=null, appReady=false;
 async function onLogin(session){
-  currentUserId=session?.user?.id||null;
+  const uid=session?.user?.id||null;
+  // повторна подія для того самого користувача (перефокус вкладки, оновлення токена) — виходимо,
+  // щоб не стирати глобальний пошук і не перезавантажувати результати
+  if(appReady && uid===currentUserId) return;
+  currentUserId=uid; appReady=true;
   $('#loginScrim').classList.add('hidden');
   $('#acct').innerHTML=`<span class="em">${esc(session.user.email||'')}</span>`;
   // прибрати можливе автозаповнення пошти у полі пошуку
@@ -982,6 +987,7 @@ async function onLogin(session){
   await reloadAll();
 }
 function onLogout(){
+  currentUserId=null; appReady=false;
   $('#loginScrim').classList.remove('hidden');
   $('#acct').innerHTML='';
   state={brand:'',model:'',volume:'',years:'',generation:'',engine:'',body:'',q:''};
@@ -991,14 +997,11 @@ function onLogout(){
 const _hash=new URLSearchParams(location.hash.slice(1));
 const _isRecovery=_hash.get('type')==='recovery' || location.hash.includes('type=recovery');
 
-let currentUserId=null;
 sb.auth.onAuthStateChange((event,session)=>{
   if(event==='PASSWORD_RECOVERY'){showReset();return;}
   if(recoveryMode)return;                 // поки на екрані нового пароля — не заходимо в застосунок
-  if(event==='TOKEN_REFRESHED'||event==='USER_UPDATED')return; // оновлення токена при поверненні на вкладку — не перезавантажуємо застосунок
-  const uid=session?.user?.id||null;
-  if(uid===currentUserId)return;          // користувач той самий → зберігаємо поточний пошук/відбір
-  currentUserId=uid;
+  // onLogin/onLogout ідемпотентні: повторні події (перефокус вкладки, оновлення токена) для того
+  // самого користувача нічого не роблять, тож поточний пошук/відбір зберігається.
   session?onLogin(session):onLogout();
 });
 
