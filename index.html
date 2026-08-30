@@ -512,6 +512,9 @@ const SPEC_FIELDS=['cri_type','fov_code','valve_cap','nozzle_dlla','nozzle_0433'
 /* Bosch Piezo (bosch_piezo_inj) — попап характеристик, порядок полів заданий власником */
 const PIEZO_LABELS=['Type','Nozzle','Piezo Control Valve','Spacer Plate','Nut','Washer','O-Ring'];
 const PIEZO_FIELDS=['type','nozzle','piezo_control_valve','spacer_plate','nut','washer','o_ring'];
+/* Continental (continental_injector) — попап характеристик: лише фізичні деталі */
+const CONT_LABELS=['Nozzle','Washer','Nut'];
+const CONT_FIELDS=['nozzle','washer','nut'];
 const MFR_COLORS={'CDI':'#f6a623','Delphi':'#43b7c9','Denso':'#e0574d','Siemens':'#9b7ede',"P'ezzo":'#57c78a','Forcam':'#d98cae','TDI':'#c8a24a','Насос-форсунки':'#7d97b5','Форкамерна':'#7d97b5'};
 const mfrColor=m=>MFR_COLORS[m]||'#8a97a8';
 
@@ -522,6 +525,8 @@ let specStore={};               // головний номер (1-й токен 
 let piezoStore={};              // 0445-токен -> рядок спеки (Bosch Piezo)
 let piezoRows=[];               // усі рядки piezo (для пошуку за oem/oe без авто)
 let solenoidRows=[];            // усі рядки solenoid (для пошуку за oem/oe без авто)
+let contStore={};               // continental-токен (A2C…/5WS…/562…) -> рядок спеки
+let contRows=[];                // усі рядки continental (для пошуку за oem/oe без авто)
 let resultState={mode:'inactive'};
 
 /* ── Data access ───────────────────────────────────────────────────────── */
@@ -633,6 +638,44 @@ function solenoidSearchMatch(q){
   }
   return out;
 }
+/* Continental (continental_injector): токен-ідентифікатор форсунки — номер
+   Continental/Siemens (A2C…, 5WS…) або 10-значний Continental-референс (562…).
+   Токени Class-4/5/M у oem_continental — не номери, тож їх пропускаємо.
+   Зіставлення авто↔спека — за спільним continental-номером в injector (як piezo). */
+function isContTok(t){return /^(A2C|5WS)/i.test(t)||/^562\d{6,}$/.test(t);}
+async function loadContinental(){
+  const {data,error}=await sb.rpc('continental_specs');
+  if(error){console.warn('continental_specs',error.message);return;}
+  contStore={};contRows=data||[];
+  contRows.forEach(row=>{
+    String(row.oem_continental||'').split(/\s+/).forEach(tok=>{
+      if(isContTok(tok)&&!contStore[tok]) contStore[tok]=row;
+    });
+  });
+}
+function continentalMatch(injector){
+  const toks=String(injector||'').split(/\s+/);
+  for(const t of toks){ if(isContTok(t)&&contStore[t]) return t; }
+  return null;
+}
+/* Пошук continental-рядків за токеном запиту в oem_continental АБО oe_number
+   (форсунку ввели в глобальний пошук, а авто з нею ще немає в базі).
+   Токен показу — введений continental-номер цього рядка, інакше перший A2C/5WS/562. */
+function continentalSearchMatch(q){
+  const terms=String(q||'').toLowerCase().split(/\s+/).filter(Boolean);
+  if(!terms.length) return [];
+  const out=[],seen=new Set();
+  for(const row of contRows){
+    const oemToks=String(row.oem_continental||'').split(/\s+/);
+    const all=oemToks.concat(String(row.oe_number||'').split(/\s+/)).map(x=>x.toLowerCase());
+    if(!terms.some(t=>all.includes(t))) continue;              // збіг за повним токеном
+    const typed=terms.find(t=>isContTok(t)&&oemToks.some(x=>x.toLowerCase()===t));
+    const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):(oemToks.find(isContTok)||oemToks[0]);
+    if(!tok||seen.has(tok)) continue;
+    seen.add(tok);out.push({row,tok,kind:'continental'});
+  }
+  return out;
+}
 
 /* ── Filters render ────────────────────────────────────────────────────── */
 function setFilterAndReload(key,val){
@@ -707,6 +750,10 @@ function readoutInjector(r){
   if(ptok){
     return `<span class="injwrap" data-piezo="${esc(ptok)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span>`;
   }
+  const ctok=continentalMatch(r.injector);
+  if(ctok){
+    return `<span class="injwrap" data-cont="${esc(ctok)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span>`;
+  }
   return copyBtn;
 }
 function specHtml(code){
@@ -758,12 +805,25 @@ function piezoOeHtml(tok){
   const spec=piezoStore[tok]||{};
   return `<div class="sp-title">${esc(tok)}</div>`+oeRows([['OEM',spec.oem_number],['OE number',spec.oe_number]]);
 }
+function continentalHtml(tok){
+  const spec=contStore[tok]||{};
+  const rows=CONT_LABELS.map((lab,i)=>{
+    const v=spec[CONT_FIELDS[i]]||'';
+    return `<div class="sp-row"><span class="sp-k">${esc(lab)}</span><span class="sp-v${v?'':' dash'}">${esc(v||'—')}</span></div>`;
+  }).join('');
+  return `<div class="sp-title">${esc(tok)}</div>${rows}`;
+}
+function continentalOeHtml(tok){
+  const spec=contStore[tok]||{};
+  return `<div class="sp-title">${esc(tok)}</div>`+oeRows([['OEM',spec.oem_continental],['OE number',spec.oe_number]]);
+}
 /* контент попапа за атрибутами обгортки: data-spec → solenoid, data-piezo → piezo.
    btn з класом .oebtn → OE/OEM попап замість характеристик */
 function popupFor(w,btn){
   const oe=!!(btn&&btn.classList.contains('oebtn'));
   if(w.dataset.spec) return {key:(oe?'so:':'s:')+w.dataset.spec, html:oe?oeHtml(w.dataset.spec):specHtml(w.dataset.spec)};
   if(w.dataset.piezo) return {key:(oe?'po:':'p:')+w.dataset.piezo, html:oe?piezoOeHtml(w.dataset.piezo):piezoHtml(w.dataset.piezo)};
+  if(w.dataset.cont) return {key:(oe?'co:':'c:')+w.dataset.cont, html:oe?continentalOeHtml(w.dataset.cont):continentalHtml(w.dataset.cont)};
   return null;
 }
 const specPop=$('#specPop');
@@ -816,11 +876,13 @@ function renderResults(){
   const rows=resultState.rows;
   // довідка: форсунки (piezo + solenoid) зі збігом за oem/oe, яких немає серед знайдених авто
   const shownToks=new Set();
-  rows.forEach(r=>{String(r.injector||'').split(/[\s/]+/).forEach(t=>{if(/^0445/.test(t))shownToks.add(t);});});
+  rows.forEach(r=>{String(r.injector||'').split(/[\s/]+/).forEach(t=>{if(/^0445/.test(t)||isContTok(t))shownToks.add(t);});});
   const piezoOnly=state.q?piezoSearchMatch(state.q).filter(m=>!shownToks.has(m.tok)):[];
   const seenTok=new Set(piezoOnly.map(m=>m.tok));
   const solOnly=state.q?solenoidSearchMatch(state.q).filter(m=>!shownToks.has(m.tok)&&!seenTok.has(m.tok)):[];
-  const specOnly=piezoOnly.concat(solOnly);
+  solOnly.forEach(m=>seenTok.add(m.tok));
+  const contOnly=state.q?continentalSearchMatch(state.q).filter(m=>!shownToks.has(m.tok)&&!seenTok.has(m.tok)):[];
+  const specOnly=piezoOnly.concat(solOnly).concat(contOnly);
 
   if(rows.length===0&&specOnly.length===0){
     cnt.innerHTML=`Нічого не знайдено`;
@@ -858,7 +920,7 @@ function renderResults(){
       </div>`;
     box.appendChild(card);
   });
-  specOnly.forEach(m=>box.appendChild(m.kind==='solenoid'?solenoidSpecCard(m):piezoSpecCard(m)));
+  specOnly.forEach(m=>box.appendChild(m.kind==='solenoid'?solenoidSpecCard(m):m.kind==='continental'?continentalSpecCard(m):piezoSpecCard(m)));
 }
 /* картка-довідка: форсунка Bosch Piezo без авто в базі — одне вікно на всю
    ширину: номер форсунки + кнопка «i» (той самий попап характеристик). */
@@ -873,6 +935,13 @@ function solenoidSpecCard(m){
   const card=el('div','card speccard');
   const copyBtn=`<button class="copy" data-copy="${esc(m.tok)}"><span class="v">${esc(m.tok)}</span>${CPI}</button>`;
   card.innerHTML=`<div class="ro inj specrow"><span class="injwrap" data-spec="${esc(m.tok)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span></div>`;
+  return card;
+}
+/* те саме для Continental без авто — попап через data-cont (continentalHtml/contStore) */
+function continentalSpecCard(m){
+  const card=el('div','card speccard');
+  const copyBtn=`<button class="copy" data-copy="${esc(m.tok)}"><span class="v">${esc(m.tok)}</span>${CPI}</button>`;
+  card.innerHTML=`<div class="ro inj specrow"><span class="injwrap" data-cont="${esc(m.tok)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span></div>`;
   return card;
 }
 
@@ -979,8 +1048,8 @@ async function onLogin(session){
   // прибрати можливе автозаповнення пошти у полі пошуку
   const gs=$('#globalSearch');state.q='';gs.value='';gs.readOnly=true;
   setTimeout(()=>{if(!state.q)gs.value='';},350);
-  // первинне завантаження: марки + мета + спеки piezo та solenoid (для попапа характеристик)
-  const [brandOpts]=await Promise.all([fetchOptions('brand'),loadPiezo(),loadSolenoid()]);
+  // первинне завантаження: марки + мета + спеки piezo, solenoid, continental (для попапа характеристик)
+  const [brandOpts]=await Promise.all([fetchOptions('brand'),loadPiezo(),loadSolenoid(),loadContinental()]);
   optionsCache.brand=brandOpts;
   brandsMeta.total=optionsCache.brand.reduce((s,[,n])=>s+Number(n),0);
   brandsMeta.count=optionsCache.brand.length;
