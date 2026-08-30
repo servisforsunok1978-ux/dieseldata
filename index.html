@@ -526,6 +526,7 @@ let piezoStore={};              // 0445-токен -> рядок спеки (Bos
 let piezoRows=[];               // усі рядки piezo (для пошуку за oem/oe без авто)
 let solenoidRows=[];            // усі рядки solenoid (для пошуку за oem/oe без авто)
 let contStore={};               // continental-токен (A2C…/5WS…/562…) -> рядок спеки
+let contOeIndex={};             // OE-номер (напр. 33800-2U000) -> continental-токен показу
 let contRows=[];                // усі рядки continental (для пошуку за oem/oe без авто)
 let resultState={mode:'inactive'};
 
@@ -643,19 +644,35 @@ function solenoidSearchMatch(q){
    Токени Class-4/5/M у oem_continental — не номери, тож їх пропускаємо.
    Зіставлення авто↔спека — за спільним continental-номером в injector (як piezo). */
 function isContTok(t){return /^(A2C|5WS)/i.test(t)||/^562\d{6,}$/.test(t);}
+/* Токен показу рядка: перший continental-номер (A2C/5WS/562), інакше 1-й токен oem. */
+function contDispTok(row){
+  const toks=String(row.oem_continental||'').split(/\s+/).filter(Boolean);
+  return toks.find(isContTok)||toks[0]||null;
+}
 async function loadContinental(){
   const {data,error}=await sb.rpc('continental_specs');
   if(error){console.warn('continental_specs',error.message);return;}
-  contStore={};contRows=data||[];
+  contStore={};contOeIndex={};contRows=data||[];
   contRows.forEach(row=>{
+    const disp=contDispTok(row);
     String(row.oem_continental||'').split(/\s+/).forEach(tok=>{
       if(isContTok(tok)&&!contStore[tok]) contStore[tok]=row;
     });
+    if(disp){
+      if(!contStore[disp]) contStore[disp]=row;
+      // OE-номери (напр. 33800-2U000) → токен показу, щоб форсунка авто без A2C/5WS/562 теж мала попап
+      String(row.oe_number||'').split(/[\s/]+/).forEach(t=>{
+        t=t.toLowerCase(); if(t&&!contOeIndex[t]) contOeIndex[t]=disp;
+      });
+    }
   });
 }
 function continentalMatch(injector){
-  const toks=String(injector||'').split(/\s+/);
+  const toks=String(injector||'').split(/[\s/]+/).filter(Boolean);
+  // 1) прямий continental-номер у форсунці (A2C/5WS/562)
   for(const t of toks){ if(isContTok(t)&&contStore[t]) return t; }
+  // 2) збіг за OE-номером форсунки авто (напр. 33800-2U000 → рядок 562002110)
+  for(const t of toks){ const d=contOeIndex[t.toLowerCase()]; if(d) return d; }
   return null;
 }
 /* Пошук continental-рядків за токеном запиту в oem_continental АБО oe_number
@@ -876,7 +893,10 @@ function renderResults(){
   const rows=resultState.rows;
   // довідка: форсунки (piezo + solenoid) зі збігом за oem/oe, яких немає серед знайдених авто
   const shownToks=new Set();
-  rows.forEach(r=>{String(r.injector||'').split(/[\s/]+/).forEach(t=>{if(/^0445/.test(t)||isContTok(t))shownToks.add(t);});});
+  rows.forEach(r=>{
+    String(r.injector||'').split(/[\s/]+/).forEach(t=>{if(/^0445/.test(t)||isContTok(t))shownToks.add(t);});
+    const cm=continentalMatch(r.injector); if(cm)shownToks.add(cm);   // continental за OE-номером теж
+  });
   const piezoOnly=state.q?piezoSearchMatch(state.q).filter(m=>!shownToks.has(m.tok)):[];
   const seenTok=new Set(piezoOnly.map(m=>m.tok));
   const solOnly=state.q?solenoidSearchMatch(state.q).filter(m=>!shownToks.has(m.tok)&&!seenTok.has(m.tok)):[];
