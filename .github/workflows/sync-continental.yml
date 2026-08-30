@@ -38,6 +38,7 @@ jobs:
           MIN_ROWS: ${{ inputs.min_rows }}
           MAX_SHRINK_FRAC: ${{ inputs.max_shrink_frac }}
           SHEET_ID_CONTINENTAL: ${{ vars.SHEET_ID_CONTINENTAL }}
+          SHEET_TAB_CONTINENTAL: ${{ vars.SHEET_TAB_CONTINENTAL }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           SUPABASE_DB_HOST: aws-0-eu-west-3.pooler.supabase.com
           SUPABASE_DB_PORT: '6543'

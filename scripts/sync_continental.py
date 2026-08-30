@@ -30,14 +30,31 @@ import re
 import sys
 from collections import Counter
 
-SHEET_NAME = 'continental_injector'
+# Назва вкладки в майстрі. Джерело істини — власний майстер користувача
+# «Continental Injector» (як bosch_piezo_inj). Назву вкладки задаємо через env,
+# бо вона не збігається з іменем таблиці БД.
+SHEET_NAME = os.environ.get('SHEET_TAB_CONTINENTAL') or 'continental_injector'
 MIN_ROWS = int(os.environ.get('MIN_ROWS') or '20')        # поточно 31
 MAX_SHRINK_FRAC = float(os.environ.get('MAX_SHRINK_FRAC') or '0.2')
 
-# Заголовки аркуша == імена колонок БД (bootstrap так їх і створює). Усі 5,
-# у порядку ordinal_position таблиці.
+# Імена колонок БД. У майстрі це заголовки; беремо ЗА НАЗВОЮ (header.index),
+# тож зайві колонки майстра (ш-код, Виробник ТС, Модель двигуна, GAP тощо)
+# ігноруються. Порядок — ordinal_position таблиці.
 SHEET_COLS = ['oe_number', 'oem_continental', 'nozzle', 'washer', 'nut']
 INSERT_COLS = SHEET_COLS  # усе, що читаємо, те й пишемо (generated-колонок нема)
+
+
+def take_main(data_rows, oe_idx, need):
+    """Рядки ОСНОВНОЇ таблиці майстра: від верху до ПЕРШОГО порожнього рядка в
+    колонці oe_number. Так відсікаємо допоміжні таблиці застосувань, що лежать
+    нижче в тому ж табі (piezo відсікає їх фільтром 0445; тут єдиного префікса
+    немає, тож межа — перший порожній oe_number)."""
+    for cells in data_rows:
+        if len(cells) <= need:
+            cells = cells + [''] * (need + 1 - len(cells))
+        if not (cells[oe_idx] or '').strip():
+            break  # кінець основної таблиці
+        yield cells
 
 
 def key_of(oe_number):
@@ -61,13 +78,11 @@ def transform(header, data_rows):
 
     need = max(idx.values())
     out, seen = [], set()
-    for cells in data_rows:
-        if len(cells) <= need:
-            cells = cells + [''] * (need + 1 - len(cells))
+    for cells in take_main(data_rows, idx['oe_number'], need):
         oe = clean(cells[idx['oe_number']])
         key = key_of(oe)
         if not key:
-            continue  # заголовок/порожні/службові рядки
+            continue  # службовий рядок усередині таблиці (малоймовірно)
         if key in seen:
             raise SystemExit(f'ABORT: дубль oe_number {key!r}.')
         seen.add(key)
@@ -84,8 +99,9 @@ def fetch_sheet(sheet_id, sa_info):
     creds = Credentials.from_service_account_info(
         sa_info, scopes=['https://www.googleapis.com/auth/spreadsheets.readonly'])
     svc = build('sheets', 'v4', credentials=creds)
+    # Назва вкладки майстра може містити пробіли/кирилицю — беремо в лапки.
     resp = svc.spreadsheets().values().get(
-        spreadsheetId=sheet_id, range=SHEET_NAME).execute()
+        spreadsheetId=sheet_id, range=f"'{SHEET_NAME}'").execute()
     rows = resp.get('values', [])
     if not rows:
         raise SystemExit('ABORT: аркуш порожній або недоступний.')
@@ -171,9 +187,7 @@ def diff_against_db(conn_params, header, data_rows):
                 dbrows[key_of(d['oe_number'])] = d
 
     diffs, only_sheet, seen = [], [], set()
-    for cells in data_rows:
-        if len(cells) <= need:
-            cells = cells + [''] * (need + 1 - len(cells))
+    for cells in take_main(data_rows, idx['oe_number'], need):
         key = key_of((cells[idx['oe_number']] or '').strip())
         if not key:
             continue
