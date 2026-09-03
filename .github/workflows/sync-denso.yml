@@ -1,0 +1,47 @@
+name: sync-denso
+
+on:
+  schedule:
+    - cron: '15 7 * * *'   # щодня 07:15 UTC (зсув: piezo 06:00, vehicles 06:30, solenoid 06:45, continental 07:00)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry-run (тільки статистика, без запису в БД)'
+        type: boolean
+        default: false
+      diff:
+        description: 'Diff (сирий-аркуш vs БД, без запису)'
+        type: boolean
+        default: false
+      min_rows:
+        description: 'Мін. рядків (порожньо = дефолт скрипта 100)'
+        type: string
+        default: ''
+      max_shrink_frac:
+        description: 'Макс. просідання, напр. 0.4 для великого чищення (порожньо = 0.2)'
+        type: string
+        default: ''
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - run: python scripts/sync_denso.py
+        env:
+          DRY_RUN: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '1' || '0' }}
+          DIFF: ${{ (github.event_name == 'workflow_dispatch' && inputs.diff) && '1' || '0' }}
+          MIN_ROWS: ${{ inputs.min_rows }}
+          MAX_SHRINK_FRAC: ${{ inputs.max_shrink_frac }}
+          SHEET_ID_DENSO: ${{ vars.SHEET_ID_DENSO }}
+          SHEET_TAB_DENSO: ${{ vars.SHEET_TAB_DENSO }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SUPABASE_DB_HOST: aws-0-eu-west-3.pooler.supabase.com
+          SUPABASE_DB_PORT: '6543'
+          SUPABASE_DB_USER: postgres.fxqboawaiwgltvxxykan
+          SUPABASE_DB_NAME: postgres
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
