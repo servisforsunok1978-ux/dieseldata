@@ -515,6 +515,9 @@ const PIEZO_FIELDS=['type','nozzle','piezo_control_valve','spacer_plate','nut','
 /* Continental (continental_injector) — попап характеристик: лише фізичні деталі */
 const CONT_LABELS=['Nozzle','Washer','Nut'];
 const CONT_FIELDS=['nozzle','washer','nut'];
+/* Denso (denso_inj) — попап характеристик, порядок полів заданий власником */
+const DENSO_LABELS=['Nozzle','Plate','Valve Rod','Nut','Washer','Injector O-Ring','Pressure Limiter Valve','Comments'];
+const DENSO_FIELDS=['nozzle','plate','valve_rod','nut','washer','injector_o_ring','pressure_limiter','comments'];
 const MFR_COLORS={'CDI':'#f6a623','Delphi':'#43b7c9','Denso':'#e0574d','Siemens':'#9b7ede',"P'ezzo":'#57c78a','Forcam':'#d98cae','TDI':'#c8a24a','Насос-форсунки':'#7d97b5','Форкамерна':'#7d97b5'};
 const mfrColor=m=>MFR_COLORS[m]||'#8a97a8';
 
@@ -528,6 +531,9 @@ let solenoidRows=[];            // усі рядки solenoid (для пошук
 let contStore={};               // continental-токен (A2C…/5WS…/562…) -> рядок спеки
 let contOeIndex={};             // OE-номер (напр. 33800-2U000) -> continental-токен показу
 let contRows=[];                // усі рядки continental (для пошуку за oem/oe без авто)
+let densoStore={};              // denso-токен (DCRI…/095000…) -> рядок спеки
+let densoOeIndex={};            // OE-номер -> denso-токен показу
+let densoRows=[];               // усі рядки denso (для пошуку за oem/oe без авто)
 let resultState={mode:'inactive'};
 
 /* ── Data access ───────────────────────────────────────────────────────── */
@@ -693,6 +699,60 @@ function continentalSearchMatch(q){
   }
   return out;
 }
+/* Denso (denso_inj): токен-ідентифікатор — DCRI-номер (ремкомплект), Denso-номер
+   095000-6620 / 095000-662# / 295050-001#, або 10-значний 0950…. Bosch 0445…
+   (теж 10-значні) навмисно НЕ чіпаємо — тому 10-значний денсо обмежено префіксом 0950.
+   Прив'язка авто↔спека — за спільним denso-номером або OE-номером у injector. */
+function isDensoTok(t){return /^DCRI\d/i.test(t)||/^\d{6}-[\d#]{3,4}$/.test(t)||/^0950\d{6}$/.test(t);}
+/* Токен показу рядка: DCRI, інакше чистий (без #) Denso-номер, інакше будь-який Denso-номер. */
+function densoDispTok(row){
+  const toks=String(row.oem_denso||'').split(/\s+/).filter(t=>t&&!/^#+$/.test(t));
+  return toks.find(t=>/^DCRI\d/i.test(t)) || toks.find(t=>isDensoTok(t)&&!t.includes('#')) || toks.find(isDensoTok) || toks[0] || null;
+}
+async function loadDenso(){
+  const {data,error}=await sb.rpc('denso_specs');
+  if(error){console.warn('denso_specs',error.message);return;}
+  densoStore={};densoOeIndex={};densoRows=data||[];
+  densoRows.forEach(row=>{
+    const disp=densoDispTok(row);
+    String(row.oem_denso||'').split(/\s+/).forEach(tok=>{
+      if(isDensoTok(tok)&&!densoStore[tok]) densoStore[tok]=row;
+    });
+    if(disp){
+      if(!densoStore[disp]) densoStore[disp]=row;
+      String(row.oe_number||'').split(/[\s/]+/).forEach(t=>{
+        t=t.toLowerCase(); if(t&&!densoOeIndex[t]) densoOeIndex[t]=disp;
+      });
+    }
+  });
+}
+function densoMatch(injector){
+  const toks=String(injector||'').split(/[\s/]+/).filter(Boolean);
+  // 1) прямий denso-номер у форсунці
+  for(const t of toks){ if(isDensoTok(t)&&densoStore[t]) return t; }
+  // 2) збіг за OE-номером форсунки авто
+  for(const t of toks){ const d=densoOeIndex[t.toLowerCase()]; if(d) return d; }
+  return null;
+}
+/* Пошук denso-рядків за токеном запиту в oem_denso АБО oe_number (форсунку ввели
+   в глобальний пошук, а авто з нею ще немає в базі). Токен показу — введений
+   denso-номер цього рядка, інакше «чистий» токен показу рядка. */
+function densoSearchMatch(q){
+  const terms=String(q||'').toLowerCase().split(/\s+/).filter(Boolean);
+  if(!terms.length) return [];
+  const out=[],seen=new Set();
+  for(const row of densoRows){
+    const oemToks=String(row.oem_denso||'').split(/\s+/);
+    const all=oemToks.concat(String(row.oe_number||'').split(/[\s/]+/)).map(x=>x.toLowerCase());
+    if(!terms.some(t=>all.includes(t))) continue;              // збіг за повним токеном
+    const disp=densoDispTok(row); if(!disp) continue;
+    const typed=terms.find(t=>oemToks.some(x=>x.toLowerCase()===t&&isDensoTok(x)));
+    const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):disp;
+    if(!tok||seen.has(tok)) continue;
+    seen.add(tok);out.push({row,tok,kind:'denso'});
+  }
+  return out;
+}
 
 /* ── Filters render ────────────────────────────────────────────────────── */
 function setFilterAndReload(key,val){
@@ -771,6 +831,10 @@ function readoutInjector(r){
   if(ctok){
     return `<span class="injwrap" data-cont="${esc(ctok)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span>`;
   }
+  const dtok=densoMatch(r.injector);
+  if(dtok){
+    return `<span class="injwrap" data-denso="${esc(dtok)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span>`;
+  }
   return copyBtn;
 }
 function specHtml(code){
@@ -834,6 +898,18 @@ function continentalOeHtml(tok){
   const spec=contStore[tok]||{};
   return `<div class="sp-title">${esc(tok)}</div>`+oeRows([['OEM',spec.oem_continental],['OE number',spec.oe_number]]);
 }
+function densoHtml(tok){
+  const spec=densoStore[tok]||{};
+  const rows=DENSO_LABELS.map((lab,i)=>{
+    const v=spec[DENSO_FIELDS[i]]||'';
+    return `<div class="sp-row"><span class="sp-k">${esc(lab)}</span><span class="sp-v${v?'':' dash'}">${esc(v||'—')}</span></div>`;
+  }).join('');
+  return `<div class="sp-title">${esc(tok)}</div>${rows}`;
+}
+function densoOeHtml(tok){
+  const spec=densoStore[tok]||{};
+  return `<div class="sp-title">${esc(tok)}</div>`+oeRows([['OEM',spec.oem_denso],['OE number',spec.oe_number]]);
+}
 /* контент попапа за атрибутами обгортки: data-spec → solenoid, data-piezo → piezo.
    btn з класом .oebtn → OE/OEM попап замість характеристик */
 function popupFor(w,btn){
@@ -841,6 +917,7 @@ function popupFor(w,btn){
   if(w.dataset.spec) return {key:(oe?'so:':'s:')+w.dataset.spec, html:oe?oeHtml(w.dataset.spec):specHtml(w.dataset.spec)};
   if(w.dataset.piezo) return {key:(oe?'po:':'p:')+w.dataset.piezo, html:oe?piezoOeHtml(w.dataset.piezo):piezoHtml(w.dataset.piezo)};
   if(w.dataset.cont) return {key:(oe?'co:':'c:')+w.dataset.cont, html:oe?continentalOeHtml(w.dataset.cont):continentalHtml(w.dataset.cont)};
+  if(w.dataset.denso) return {key:(oe?'do:':'d:')+w.dataset.denso, html:oe?densoOeHtml(w.dataset.denso):densoHtml(w.dataset.denso)};
   return null;
 }
 const specPop=$('#specPop');
@@ -894,15 +971,18 @@ function renderResults(){
   // довідка: форсунки (piezo + solenoid) зі збігом за oem/oe, яких немає серед знайдених авто
   const shownToks=new Set();
   rows.forEach(r=>{
-    String(r.injector||'').split(/[\s/]+/).forEach(t=>{if(/^0445/.test(t)||isContTok(t))shownToks.add(t);});
+    String(r.injector||'').split(/[\s/]+/).forEach(t=>{if(/^0445/.test(t)||isContTok(t)||isDensoTok(t))shownToks.add(t);});
     const cm=continentalMatch(r.injector); if(cm)shownToks.add(cm);   // continental за OE-номером теж
+    const dm=densoMatch(r.injector); if(dm)shownToks.add(dm);         // denso за OE-номером теж
   });
   const piezoOnly=state.q?piezoSearchMatch(state.q).filter(m=>!shownToks.has(m.tok)):[];
   const seenTok=new Set(piezoOnly.map(m=>m.tok));
   const solOnly=state.q?solenoidSearchMatch(state.q).filter(m=>!shownToks.has(m.tok)&&!seenTok.has(m.tok)):[];
   solOnly.forEach(m=>seenTok.add(m.tok));
   const contOnly=state.q?continentalSearchMatch(state.q).filter(m=>!shownToks.has(m.tok)&&!seenTok.has(m.tok)):[];
-  const specOnly=piezoOnly.concat(solOnly).concat(contOnly);
+  contOnly.forEach(m=>seenTok.add(m.tok));
+  const densoOnly=state.q?densoSearchMatch(state.q).filter(m=>!shownToks.has(m.tok)&&!seenTok.has(m.tok)):[];
+  const specOnly=piezoOnly.concat(solOnly).concat(contOnly).concat(densoOnly);
 
   if(rows.length===0&&specOnly.length===0){
     cnt.innerHTML=`Нічого не знайдено`;
@@ -940,7 +1020,7 @@ function renderResults(){
       </div>`;
     box.appendChild(card);
   });
-  specOnly.forEach(m=>box.appendChild(m.kind==='solenoid'?solenoidSpecCard(m):m.kind==='continental'?continentalSpecCard(m):piezoSpecCard(m)));
+  specOnly.forEach(m=>box.appendChild(m.kind==='solenoid'?solenoidSpecCard(m):m.kind==='continental'?continentalSpecCard(m):m.kind==='denso'?densoSpecCard(m):piezoSpecCard(m)));
 }
 /* картка-довідка: форсунка Bosch Piezo без авто в базі — одне вікно на всю
    ширину: номер форсунки + кнопка «i» (той самий попап характеристик). */
@@ -962,6 +1042,13 @@ function continentalSpecCard(m){
   const card=el('div','card speccard');
   const copyBtn=`<button class="copy" data-copy="${esc(m.tok)}"><span class="v">${esc(m.tok)}</span>${CPI}</button>`;
   card.innerHTML=`<div class="ro inj specrow"><span class="injwrap" data-cont="${esc(m.tok)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span></div>`;
+  return card;
+}
+/* те саме для Denso без авто — попап через data-denso (densoHtml/densoStore) */
+function densoSpecCard(m){
+  const card=el('div','card speccard');
+  const copyBtn=`<button class="copy" data-copy="${esc(m.tok)}"><span class="v">${esc(m.tok)}</span>${CPI}</button>`;
+  card.innerHTML=`<div class="ro inj specrow"><span class="injwrap" data-denso="${esc(m.tok)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span></div>`;
   return card;
 }
 
@@ -1068,8 +1155,8 @@ async function onLogin(session){
   // прибрати можливе автозаповнення пошти у полі пошуку
   const gs=$('#globalSearch');state.q='';gs.value='';gs.readOnly=true;
   setTimeout(()=>{if(!state.q)gs.value='';},350);
-  // первинне завантаження: марки + мета + спеки piezo, solenoid, continental (для попапа характеристик)
-  const [brandOpts]=await Promise.all([fetchOptions('brand'),loadPiezo(),loadSolenoid(),loadContinental()]);
+  // первинне завантаження: марки + мета + спеки piezo, solenoid, continental, denso (для попапа характеристик)
+  const [brandOpts]=await Promise.all([fetchOptions('brand'),loadPiezo(),loadSolenoid(),loadContinental(),loadDenso()]);
   optionsCache.brand=brandOpts;
   brandsMeta.total=optionsCache.brand.reduce((s,[,n])=>s+Number(n),0);
   brandsMeta.count=optionsCache.brand.length;
