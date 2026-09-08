@@ -488,8 +488,10 @@ const $=s=>document.querySelector(s);
 const el=(t,c)=>{const e=document.createElement(t);if(c)e.className=c;return e;};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm=s=>String(s||'').replace(/\s+/g,' ').trim();
-/* нормалізація номера для пошуку: прибираємо роздільники - . , (двостороння) */
-const normNum=s=>String(s||'').replace(/[.,-]/g,'').toLowerCase();
+/* нормалізація номера для пошуку: прибираємо роздільники - . , + O↔0 (двостороння) */
+const normNum=s=>String(s||'').toLowerCase().replace(/[.,-]/g,'').replace(/o/g,'0');
+/* склейка всього запиту в один номер: прибираємо пробіли (1980 S5 → 1980s5) */
+const collapseQ=q=>normNum(String(q||'').replace(/\s+/g,''));
 const NOW_YEAR=new Date().getFullYear();
 function yrRange(str){
   const s=String(str||''); const y=(s.match(/\d{4}/g)||[]).map(Number);
@@ -621,7 +623,8 @@ function piezoSearchMatch(q){
     const oemToks=String(row.oem_number||'').split(/\s+/);
     const all=oemToks.concat(String(row.oe_number||'').split(/\s+/)).map(x=>x.toLowerCase());
     const allNorm=all.map(normNum);
-    if(!terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))) continue;  // збіг за повним АБО нормалізованим токеном
+    const qc=collapseQ(q);
+    if(!(terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))||(qc.length>=4&&allNorm.includes(qc)))) continue;  // повний / нормалізований токен АБО склеєний запит (пробіли)
     // ключ/показ: якщо ввели саме 0445-номер цього рядка — показуємо його, інакше перший 0445
     const typed=terms.find(t=>/^0445/.test(t)&&oemToks.some(x=>x.toLowerCase()===t));
     const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):oemToks.find(t=>/^0445/.test(t));
@@ -641,7 +644,8 @@ function solenoidSearchMatch(q){
     const oemToks=String(row.oem||'').split(/[\s/]+/).filter(Boolean);
     const all=oemToks.concat(String(row.oe_number||'').split(/[\s/]+/)).map(x=>x.toLowerCase());
     const allNorm=all.map(normNum);
-    if(!terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))) continue;  // збіг за повним АБО нормалізованим токеном
+    const qc=collapseQ(q);
+    if(!(terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))||(qc.length>=4&&allNorm.includes(qc)))) continue;  // повний / нормалізований токен АБО склеєний запит (пробіли)
     const typed=terms.find(t=>/^0445/.test(t)&&oemToks.some(x=>x.toLowerCase()===t));
     const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):(oemToks.find(t=>/^0445/.test(t))||oemToks[0]);
     if(!tok||seen.has(tok)) continue;
@@ -698,7 +702,8 @@ function continentalSearchMatch(q){
     const oemToks=String(row.oem_continental||'').split(/\s+/);
     const all=oemToks.concat(String(row.oe_number||'').split(/\s+/)).map(x=>x.toLowerCase());
     const allNorm=all.map(normNum);
-    if(!terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))) continue;  // збіг за повним АБО нормалізованим токеном
+    const qc=collapseQ(q);
+    if(!(terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))||(qc.length>=4&&allNorm.includes(qc)))) continue;  // повний / нормалізований токен АБО склеєний запит (пробіли)
     const typed=terms.find(t=>isContTok(t)&&oemToks.some(x=>x.toLowerCase()===t));
     const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):(oemToks.find(isContTok)||oemToks[0]);
     if(!tok||seen.has(tok)) continue;
@@ -754,7 +759,8 @@ function densoSearchMatch(q){
     const oemToks=String(row.oem_denso||'').split(/\s+/);
     const all=oemToks.concat(String(row.oe_number||'').split(/[\s/]+/)).map(x=>x.toLowerCase());
     const allNorm=all.map(normNum);
-    if(!terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))) continue;  // збіг за повним АБО нормалізованим токеном
+    const qc=collapseQ(q);
+    if(!(terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))||(qc.length>=4&&allNorm.includes(qc)))) continue;  // повний / нормалізований токен АБО склеєний запит (пробіли)
     const disp=densoDispTok(row); if(!disp) continue;
     const typed=terms.find(t=>oemToks.some(x=>x.toLowerCase()===t&&isDensoTok(x)));
     const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):disp;
