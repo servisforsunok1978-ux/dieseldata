@@ -492,6 +492,8 @@ const norm=s=>String(s||'').replace(/\s+/g,' ').trim();
 const normNum=s=>String(s||'').toLowerCase().replace(/[.,-]/g,'').replace(/o/g,'0');
 /* склейка всього запиту в один номер: прибираємо пробіли (1980 S5 → 1980s5) */
 const collapseQ=q=>normNum(String(q||'').replace(/\s+/g,''));
+/* збіг з урахуванням '#' як рівно одного будь-якого символу (обидва боки, вже нормалізовані) */
+const hashMatch=(a,b)=>{if(!a||!b||a.length!==b.length)return false;for(let i=0;i<a.length;i++){const x=a[i],y=b[i];if(x!==y&&x!=='#'&&y!=='#')return false;}return true;};
 const NOW_YEAR=new Date().getFullYear();
 function yrRange(str){
   const s=String(str||''); const y=(s.match(/\d{4}/g)||[]).map(Number);
@@ -624,7 +626,7 @@ function piezoSearchMatch(q){
     const all=oemToks.concat(String(row.oe_number||'').split(/\s+/)).map(x=>x.toLowerCase());
     const allNorm=all.map(normNum);
     const qc=collapseQ(q);
-    if(!(terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))||(qc.length>=4&&allNorm.includes(qc)))) continue;  // повний / нормалізований токен АБО склеєний запит (пробіли)
+    if(!(terms.some(t=>{const tn=normNum(t);return all.includes(t)||allNorm.includes(tn)||allNorm.some(s=>hashMatch(tn,s));})||(qc.length>=4&&(allNorm.includes(qc)||allNorm.some(s=>hashMatch(qc,s)))))) continue;  // повний / нормалізований / #-wildcard токен АБО склеєний запит
     // ключ/показ: якщо ввели саме 0445-номер цього рядка — показуємо його, інакше перший 0445
     const typed=terms.find(t=>/^0445/.test(t)&&oemToks.some(x=>x.toLowerCase()===t));
     const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):oemToks.find(t=>/^0445/.test(t));
@@ -645,7 +647,7 @@ function solenoidSearchMatch(q){
     const all=oemToks.concat(String(row.oe_number||'').split(/[\s/]+/)).map(x=>x.toLowerCase());
     const allNorm=all.map(normNum);
     const qc=collapseQ(q);
-    if(!(terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))||(qc.length>=4&&allNorm.includes(qc)))) continue;  // повний / нормалізований токен АБО склеєний запит (пробіли)
+    if(!(terms.some(t=>{const tn=normNum(t);return all.includes(t)||allNorm.includes(tn)||allNorm.some(s=>hashMatch(tn,s));})||(qc.length>=4&&(allNorm.includes(qc)||allNorm.some(s=>hashMatch(qc,s)))))) continue;  // повний / нормалізований / #-wildcard токен АБО склеєний запит
     const typed=terms.find(t=>/^0445/.test(t)&&oemToks.some(x=>x.toLowerCase()===t));
     const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):(oemToks.find(t=>/^0445/.test(t))||oemToks[0]);
     if(!tok||seen.has(tok)) continue;
@@ -703,7 +705,7 @@ function continentalSearchMatch(q){
     const all=oemToks.concat(String(row.oe_number||'').split(/\s+/)).map(x=>x.toLowerCase());
     const allNorm=all.map(normNum);
     const qc=collapseQ(q);
-    if(!(terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))||(qc.length>=4&&allNorm.includes(qc)))) continue;  // повний / нормалізований токен АБО склеєний запит (пробіли)
+    if(!(terms.some(t=>{const tn=normNum(t);return all.includes(t)||allNorm.includes(tn)||allNorm.some(s=>hashMatch(tn,s));})||(qc.length>=4&&(allNorm.includes(qc)||allNorm.some(s=>hashMatch(qc,s)))))) continue;  // повний / нормалізований / #-wildcard токен АБО склеєний запит
     const typed=terms.find(t=>isContTok(t)&&oemToks.some(x=>x.toLowerCase()===t));
     const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):(oemToks.find(isContTok)||oemToks[0]);
     if(!tok||seen.has(tok)) continue;
@@ -760,7 +762,7 @@ function densoSearchMatch(q){
     const all=oemToks.concat(String(row.oe_number||'').split(/[\s/]+/)).map(x=>x.toLowerCase());
     const allNorm=all.map(normNum);
     const qc=collapseQ(q);
-    if(!(terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))||(qc.length>=4&&allNorm.includes(qc)))) continue;  // повний / нормалізований токен АБО склеєний запит (пробіли)
+    if(!(terms.some(t=>{const tn=normNum(t);return all.includes(t)||allNorm.includes(tn)||allNorm.some(s=>hashMatch(tn,s));})||(qc.length>=4&&(allNorm.includes(qc)||allNorm.some(s=>hashMatch(qc,s)))))) continue;  // повний / нормалізований / #-wildcard токен АБО склеєний запит
     const disp=densoDispTok(row); if(!disp) continue;
     const typed=terms.find(t=>oemToks.some(x=>x.toLowerCase()===t&&isDensoTok(x)));
     const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):disp;
