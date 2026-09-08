@@ -488,6 +488,8 @@ const $=s=>document.querySelector(s);
 const el=(t,c)=>{const e=document.createElement(t);if(c)e.className=c;return e;};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm=s=>String(s||'').replace(/\s+/g,' ').trim();
+/* нормалізація номера для пошуку: прибираємо роздільники - . , (двостороння) */
+const normNum=s=>String(s||'').replace(/[.,-]/g,'').toLowerCase();
 const NOW_YEAR=new Date().getFullYear();
 function yrRange(str){
   const s=String(str||''); const y=(s.match(/\d{4}/g)||[]).map(Number);
@@ -618,7 +620,8 @@ function piezoSearchMatch(q){
   for(const row of piezoRows){
     const oemToks=String(row.oem_number||'').split(/\s+/);
     const all=oemToks.concat(String(row.oe_number||'').split(/\s+/)).map(x=>x.toLowerCase());
-    if(!terms.some(t=>all.includes(t))) continue;              // збіг за повним токеном
+    const allNorm=all.map(normNum);
+    if(!terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))) continue;  // збіг за повним АБО нормалізованим токеном
     // ключ/показ: якщо ввели саме 0445-номер цього рядка — показуємо його, інакше перший 0445
     const typed=terms.find(t=>/^0445/.test(t)&&oemToks.some(x=>x.toLowerCase()===t));
     const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):oemToks.find(t=>/^0445/.test(t));
@@ -637,7 +640,8 @@ function solenoidSearchMatch(q){
   for(const row of solenoidRows){
     const oemToks=String(row.oem||'').split(/[\s/]+/).filter(Boolean);
     const all=oemToks.concat(String(row.oe_number||'').split(/[\s/]+/)).map(x=>x.toLowerCase());
-    if(!terms.some(t=>all.includes(t))) continue;              // збіг за повним токеном
+    const allNorm=all.map(normNum);
+    if(!terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))) continue;  // збіг за повним АБО нормалізованим токеном
     const typed=terms.find(t=>/^0445/.test(t)&&oemToks.some(x=>x.toLowerCase()===t));
     const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):(oemToks.find(t=>/^0445/.test(t))||oemToks[0]);
     if(!tok||seen.has(tok)) continue;
@@ -668,7 +672,9 @@ async function loadContinental(){
       if(!contStore[disp]) contStore[disp]=row;
       // OE-номери (напр. 33800-2U000) → токен показу, щоб форсунка авто без A2C/5WS/562 теж мала попап
       String(row.oe_number||'').split(/[\s/]+/).forEach(t=>{
-        t=t.toLowerCase(); if(t&&!contOeIndex[t]) contOeIndex[t]=disp;
+        t=t.toLowerCase(); if(!t) return;
+        if(!contOeIndex[t]) contOeIndex[t]=disp;
+        const tn=normNum(t); if(tn&&!contOeIndex[tn]) contOeIndex[tn]=disp;
       });
     }
   });
@@ -678,7 +684,7 @@ function continentalMatch(injector){
   // 1) прямий continental-номер у форсунці (A2C/5WS/562)
   for(const t of toks){ if(isContTok(t)&&contStore[t]) return t; }
   // 2) збіг за OE-номером форсунки авто (напр. 33800-2U000 → рядок 562002110)
-  for(const t of toks){ const d=contOeIndex[t.toLowerCase()]; if(d) return d; }
+  for(const t of toks){ const d=contOeIndex[t.toLowerCase()]||contOeIndex[normNum(t)]; if(d) return d; }
   return null;
 }
 /* Пошук continental-рядків за токеном запиту в oem_continental АБО oe_number
@@ -691,7 +697,8 @@ function continentalSearchMatch(q){
   for(const row of contRows){
     const oemToks=String(row.oem_continental||'').split(/\s+/);
     const all=oemToks.concat(String(row.oe_number||'').split(/\s+/)).map(x=>x.toLowerCase());
-    if(!terms.some(t=>all.includes(t))) continue;              // збіг за повним токеном
+    const allNorm=all.map(normNum);
+    if(!terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))) continue;  // збіг за повним АБО нормалізованим токеном
     const typed=terms.find(t=>isContTok(t)&&oemToks.some(x=>x.toLowerCase()===t));
     const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):(oemToks.find(isContTok)||oemToks[0]);
     if(!tok||seen.has(tok)) continue;
@@ -721,7 +728,9 @@ async function loadDenso(){
     if(disp){
       if(!densoStore[disp]) densoStore[disp]=row;
       String(row.oe_number||'').split(/[\s/]+/).forEach(t=>{
-        t=t.toLowerCase(); if(t&&!densoOeIndex[t]) densoOeIndex[t]=disp;
+        t=t.toLowerCase(); if(!t) return;
+        if(!densoOeIndex[t]) densoOeIndex[t]=disp;
+        const tn=normNum(t); if(tn&&!densoOeIndex[tn]) densoOeIndex[tn]=disp;
       });
     }
   });
@@ -731,7 +740,7 @@ function densoMatch(injector){
   // 1) прямий denso-номер у форсунці
   for(const t of toks){ if(isDensoTok(t)&&densoStore[t]) return t; }
   // 2) збіг за OE-номером форсунки авто
-  for(const t of toks){ const d=densoOeIndex[t.toLowerCase()]; if(d) return d; }
+  for(const t of toks){ const d=densoOeIndex[t.toLowerCase()]||densoOeIndex[normNum(t)]; if(d) return d; }
   return null;
 }
 /* Пошук denso-рядків за токеном запиту в oem_denso АБО oe_number (форсунку ввели
@@ -744,7 +753,8 @@ function densoSearchMatch(q){
   for(const row of densoRows){
     const oemToks=String(row.oem_denso||'').split(/\s+/);
     const all=oemToks.concat(String(row.oe_number||'').split(/[\s/]+/)).map(x=>x.toLowerCase());
-    if(!terms.some(t=>all.includes(t))) continue;              // збіг за повним токеном
+    const allNorm=all.map(normNum);
+    if(!terms.some(t=>all.includes(t)||allNorm.includes(normNum(t)))) continue;  // збіг за повним АБО нормалізованим токеном
     const disp=densoDispTok(row); if(!disp) continue;
     const typed=terms.find(t=>oemToks.some(x=>x.toLowerCase()===t&&isDensoTok(x)));
     const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):disp;
