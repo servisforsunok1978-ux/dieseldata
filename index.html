@@ -524,6 +524,9 @@ const CONT_FIELDS=['nozzle','washer','nut'];
 /* Denso (denso_inj) — попап характеристик, порядок полів заданий власником */
 const DENSO_LABELS=['Nozzle','Plate','Valve Rod','Nut','Washer','Injector O-Ring','Pressure Limiter Valve','Comments'];
 const DENSO_FIELDS=['nozzle','plate','valve_rod','nut','washer','injector_o_ring','pressure_limiter','comments'];
+/* Delphi (delphi_inj) — попап характеристик, порядок полів заданий власником */
+const DELPHI_LABELS=['Type Code','Valve','Adaptor Plate','Nozzle','Nozzle Kit','Nut','Washer'];
+const DELPHI_FIELDS=['type_code','valve','adaptor_plate','nozzle','nozzle_kit','nut','washer'];
 const MFR_COLORS={'CDI':'#f6a623','Delphi':'#43b7c9','Denso':'#e0574d','Siemens':'#9b7ede',"P'ezzo":'#57c78a','Forcam':'#d98cae','TDI':'#c8a24a','Насос-форсунки':'#7d97b5','Форкамерна':'#7d97b5'};
 const mfrColor=m=>MFR_COLORS[m]||'#8a97a8';
 
@@ -540,6 +543,9 @@ let contRows=[];                // усі рядки continental (для пош�
 let densoStore={};              // denso-токен (DCRI…/095000…) -> рядок спеки
 let densoOeIndex={};            // OE-номер -> denso-токен показу
 let densoRows=[];               // усі рядки denso (для пошуку за oem/oe без авто)
+let delphiStore={};             // delphi-токен (oem_delphi) -> рядок спеки
+let delphiOeIndex={};           // OE-номер (EJBR…/HRD…/28…) -> delphi-токен показу
+let delphiRows=[];              // усі рядки delphi (для пошуку за oem/oe без авто)
 let resultState={mode:'inactive'};
 
 /* ── Data access ───────────────────────────────────────────────────────── */
@@ -771,6 +777,59 @@ function densoSearchMatch(q){
   }
   return out;
 }
+/* Delphi (delphi_inj): oem_delphi містить різнорідні OEM-номери авто (A6510701387,
+   2S7Q-9K546-AH, 33800-4X500…), а «фірмові» delphi-номери (EJBR…/EJDR…/EMBR…/HRD…) —
+   у oe_number. Тож префіксного регексу немає: індексуємо за всіма токенами oem_delphi
+   + OE-індекс. Прив'язка авто↔спека — за спільним oem_delphi АБО oe_number у injector. */
+function delphiDispTok(row){
+  const oem=String(row.oem_delphi||'').split(/\s+/).filter(Boolean);
+  if(oem.length) return oem[0];
+  const oe=String(row.oe_number||'').split(/[\s/]+/).filter(Boolean);
+  return oe[0]||null;
+}
+async function loadDelphi(){
+  const {data,error}=await sb.rpc('delphi_specs');
+  if(error){console.warn('delphi_specs',error.message);return;}
+  delphiStore={};delphiOeIndex={};delphiRows=data||[];
+  delphiRows.forEach(row=>{
+    const disp=delphiDispTok(row);
+    String(row.oem_delphi||'').split(/\s+/).forEach(tok=>{
+      if(tok&&!delphiStore[tok]) delphiStore[tok]=row;
+    });
+    if(disp){
+      if(!delphiStore[disp]) delphiStore[disp]=row;
+      String(row.oe_number||'').split(/[\s/]+/).forEach(t=>{
+        t=t.toLowerCase(); if(t&&!delphiOeIndex[t]) delphiOeIndex[t]=disp;
+      });
+    }
+  });
+}
+function delphiMatch(injector){
+  const toks=String(injector||'').split(/[\s/]+/).filter(Boolean);
+  // 1) прямий oem_delphi-номер у форсунці
+  for(const t of toks){ if(delphiStore[t]) return t; }
+  // 2) збіг за OE-номером форсунки авто (EJBR…/HRD…/28…)
+  for(const t of toks){ const d=delphiOeIndex[t.toLowerCase()]; if(d) return d; }
+  return null;
+}
+/* Пошук delphi-рядків за токеном запиту в oem_delphi АБО oe_number (форсунку ввели
+   в глобальний пошук, а авто з нею ще немає в базі). */
+function delphiSearchMatch(q){
+  const terms=String(q||'').toLowerCase().split(/\s+/).filter(Boolean);
+  if(!terms.length) return [];
+  const out=[],seen=new Set();
+  for(const row of delphiRows){
+    const oemToks=String(row.oem_delphi||'').split(/\s+/);
+    const all=oemToks.concat(String(row.oe_number||'').split(/[\s/]+/)).map(x=>x.toLowerCase());
+    if(!terms.some(t=>all.includes(t))) continue;              // збіг за повним токеном
+    const disp=delphiDispTok(row); if(!disp) continue;
+    const typed=terms.find(t=>oemToks.some(x=>x.toLowerCase()===t));
+    const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):disp;
+    if(!tok||seen.has(tok)) continue;
+    seen.add(tok);out.push({row,tok,kind:'delphi'});
+  }
+  return out;
+}
 
 /* ── Filters render ────────────────────────────────────────────────────── */
 function setFilterAndReload(key,val){
@@ -853,6 +912,10 @@ function readoutInjector(r){
   if(dtok){
     return `<span class="injwrap" data-denso="${esc(dtok)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span>`;
   }
+  const ltok=delphiMatch(r.injector);
+  if(ltok){
+    return `<span class="injwrap" data-delphi="${esc(ltok)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span>`;
+  }
   return copyBtn;
 }
 function specHtml(code){
@@ -928,6 +991,18 @@ function densoOeHtml(tok){
   const spec=densoStore[tok]||{};
   return `<div class="sp-title">${esc(tok)}</div>`+oeRows([['OEM',spec.oem_denso],['OE number',spec.oe_number]]);
 }
+function delphiHtml(tok){
+  const spec=delphiStore[tok]||{};
+  const rows=DELPHI_LABELS.map((lab,i)=>{
+    const v=spec[DELPHI_FIELDS[i]]||'';
+    return `<div class="sp-row"><span class="sp-k">${esc(lab)}</span><span class="sp-v${v?'':' dash'}">${esc(v||'—')}</span></div>`;
+  }).join('');
+  return `<div class="sp-title">${esc(tok)}</div>${rows}`;
+}
+function delphiOeHtml(tok){
+  const spec=delphiStore[tok]||{};
+  return `<div class="sp-title">${esc(tok)}</div>`+oeRows([['OEM',spec.oem_delphi],['OE number',spec.oe_number]]);
+}
 /* контент попапа за атрибутами обгортки: data-spec → solenoid, data-piezo → piezo.
    btn з класом .oebtn → OE/OEM попап замість характеристик */
 function popupFor(w,btn){
@@ -936,6 +1011,7 @@ function popupFor(w,btn){
   if(w.dataset.piezo) return {key:(oe?'po:':'p:')+w.dataset.piezo, html:oe?piezoOeHtml(w.dataset.piezo):piezoHtml(w.dataset.piezo)};
   if(w.dataset.cont) return {key:(oe?'co:':'c:')+w.dataset.cont, html:oe?continentalOeHtml(w.dataset.cont):continentalHtml(w.dataset.cont)};
   if(w.dataset.denso) return {key:(oe?'do:':'d:')+w.dataset.denso, html:oe?densoOeHtml(w.dataset.denso):densoHtml(w.dataset.denso)};
+  if(w.dataset.delphi) return {key:(oe?'lo:':'l:')+w.dataset.delphi, html:oe?delphiOeHtml(w.dataset.delphi):delphiHtml(w.dataset.delphi)};
   return null;
 }
 const specPop=$('#specPop');
@@ -992,6 +1068,7 @@ function renderResults(){
     String(r.injector||'').split(/[\s/]+/).forEach(t=>{if(/^0445/.test(t)||isContTok(t)||isDensoTok(t))shownToks.add(t);});
     const cm=continentalMatch(r.injector); if(cm)shownToks.add(cm);   // continental за OE-номером теж
     const dm=densoMatch(r.injector); if(dm)shownToks.add(dm);         // denso за OE-номером теж
+    const lm=delphiMatch(r.injector); if(lm)shownToks.add(lm);        // delphi за OE-номером теж
   });
   const piezoOnly=state.q?piezoSearchMatch(state.q).filter(m=>!shownToks.has(m.tok)):[];
   const seenTok=new Set(piezoOnly.map(m=>m.tok));
@@ -1000,7 +1077,9 @@ function renderResults(){
   const contOnly=state.q?continentalSearchMatch(state.q).filter(m=>!shownToks.has(m.tok)&&!seenTok.has(m.tok)):[];
   contOnly.forEach(m=>seenTok.add(m.tok));
   const densoOnly=state.q?densoSearchMatch(state.q).filter(m=>!shownToks.has(m.tok)&&!seenTok.has(m.tok)):[];
-  const specOnly=piezoOnly.concat(solOnly).concat(contOnly).concat(densoOnly);
+  densoOnly.forEach(m=>seenTok.add(m.tok));
+  const delphiOnly=state.q?delphiSearchMatch(state.q).filter(m=>!shownToks.has(m.tok)&&!seenTok.has(m.tok)):[];
+  const specOnly=piezoOnly.concat(solOnly).concat(contOnly).concat(densoOnly).concat(delphiOnly);
 
   if(rows.length===0&&specOnly.length===0){
     cnt.innerHTML=`Нічого не знайдено`;
@@ -1038,7 +1117,7 @@ function renderResults(){
       </div>`;
     box.appendChild(card);
   });
-  specOnly.forEach(m=>box.appendChild(m.kind==='solenoid'?solenoidSpecCard(m):m.kind==='continental'?continentalSpecCard(m):m.kind==='denso'?densoSpecCard(m):piezoSpecCard(m)));
+  specOnly.forEach(m=>box.appendChild(m.kind==='solenoid'?solenoidSpecCard(m):m.kind==='continental'?continentalSpecCard(m):m.kind==='denso'?densoSpecCard(m):m.kind==='delphi'?delphiSpecCard(m):piezoSpecCard(m)));
 }
 /* картка-довідка: форсунка Bosch Piezo без авто в базі — одне вікно на всю
    ширину: номер форсунки + кнопка «i» (той самий попап характеристик). */
@@ -1067,6 +1146,13 @@ function densoSpecCard(m){
   const card=el('div','card speccard');
   const copyBtn=`<button class="copy" data-copy="${esc(m.tok)}"><span class="v">${esc(m.tok)}</span>${CPI}</button>`;
   card.innerHTML=`<div class="ro inj specrow"><span class="injwrap" data-denso="${esc(m.tok)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span></div>`;
+  return card;
+}
+/* те саме для Delphi без авто — попап через data-delphi (delphiHtml/delphiStore) */
+function delphiSpecCard(m){
+  const card=el('div','card speccard');
+  const copyBtn=`<button class="copy" data-copy="${esc(m.tok)}"><span class="v">${esc(m.tok)}</span>${CPI}</button>`;
+  card.innerHTML=`<div class="ro inj specrow"><span class="injwrap" data-delphi="${esc(m.tok)}">${copyBtn}<button class="specbtn" aria-label="Характеристики форсунки">i</button><button class="specbtn oebtn" aria-label="OE / OEM номери">c</button></span></div>`;
   return card;
 }
 
@@ -1173,8 +1259,8 @@ async function onLogin(session){
   // прибрати можливе автозаповнення пошти у полі пошуку
   const gs=$('#globalSearch');state.q='';gs.value='';gs.readOnly=true;
   setTimeout(()=>{if(!state.q)gs.value='';},350);
-  // первинне завантаження: марки + мета + спеки piezo, solenoid, continental, denso (для попапа характеристик)
-  const [brandOpts]=await Promise.all([fetchOptions('brand'),loadPiezo(),loadSolenoid(),loadContinental(),loadDenso()]);
+  // первинне завантаження: марки + мета + спеки piezo, solenoid, continental, denso, delphi (для попапа характеристик)
+  const [brandOpts]=await Promise.all([fetchOptions('brand'),loadPiezo(),loadSolenoid(),loadContinental(),loadDenso(),loadDelphi()]);
   optionsCache.brand=brandOpts;
   brandsMeta.total=optionsCache.brand.reduce((s,[,n])=>s+Number(n),0);
   brandsMeta.count=optionsCache.brand.length;
