@@ -50,12 +50,43 @@ MAX_SHRINK_FRAC = float(os.environ.get('MAX_SHRINK_FRAC', '0.2'))
 # зі `years` ЛИШЕ коли всі три порожні — зручність для нового авто.
 SHEET_COLS = ['id', 'brand', 'model', 'generation', 'volume', 'years',
               'year_start', 'year_end', 'year_open',
-              'engine', 'body', 'manufacturer', 'injector', 'pump', 'vin']
+              'engine', 'body', 'manufacturer', 'injector', 'pump', 'vin',
+              'pcv', 'scv']
 INSERT_COLS = SHEET_COLS  # усе, що читаємо, те й пишемо (без search_vector)
+
+# Заголовок аркуша != ім'я колонки БД лише для цих двох (решта 1:1). Значення —
+# людяний заголовок в аркуші; матчинг робастний до зайвих пробілів (див. norm).
+#   pcv <- «Pressure Control Valve   PCV» (кол. P)
+#   scv <- «Suction Control Valve        SCV» (кол. Q)
+SOURCE_HEADER = {
+    'pcv': 'Pressure Control Valve PCV',
+    'scv': 'Suction Control Valve SCV',
+}
+
+
+def norm(v):
+    return re.sub(r'\s+', ' ', (v or '')).strip()
+
+
+def build_idx(header):
+    """{db_col: індекс у header}. Матч за нормалізованим заголовком (стійко до
+    подвійних пробілів у людяних заголовках PCV/SCV). ABORT, якщо колонки бракує."""
+    norm_hdr = {}
+    for i, h in enumerate(header):
+        norm_hdr.setdefault(norm(h), i)
+    idx = {}
+    for col in SHEET_COLS:
+        key = norm(SOURCE_HEADER.get(col, col))
+        if key in norm_hdr:
+            idx[col] = norm_hdr[key]
+    missing = [c for c in SHEET_COLS if c not in idx]
+    if missing:
+        raise SystemExit(f'У джерелі бракує колонок: {missing}')
+    return idx
 
 
 def clean(v):
-    v = re.sub(r'\s+', ' ', (v or '')).strip()
+    v = norm(v)
     if v.lower() == 'none':
         return None
     return v or None
@@ -108,10 +139,7 @@ def to_bool_or_none(v, ctx):
 def transform(header, data_rows):
     """header: назви колонок; data_rows: списки клітинок.
     Повертає (rows, bad_years)."""
-    idx = {name: header.index(name) for name in SHEET_COLS if name in header}
-    missing = [n for n in SHEET_COLS if n not in idx]
-    if missing:
-        raise SystemExit(f'У джерелі бракує колонок: {missing}')
+    idx = build_idx(header)
 
     need = max(idx.values())
     out, seen_ids, bad_years = [], set(), []
@@ -244,7 +272,7 @@ def diff_against_db(conn_params, header, data_rows):
     час синку. Нічого не пише."""
     import psycopg2
 
-    idx = {n: header.index(n) for n in SHEET_COLS if n in header}
+    idx = build_idx(header)
     need = max(idx.values())
     dbrows = {}
     with psycopg2.connect(**conn_params) as conn:
