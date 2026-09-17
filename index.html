@@ -1062,6 +1062,11 @@ function renderResults(){
     return;
   }
   const rows=resultState.rows;
+  // Сортування: в межах однакової моделі (марка+модель) — за числовим об'ємом від меншого до більшого.
+  // Порядок різних моделей не змінюємо (стабільне сортування: для різних груп повертаємо 0).
+  const volNum=r=>{const m=String(r.volume||'').match(/\d+(?:[.,]\d+)?/);return m?parseFloat(m[0].replace(',','.')):Infinity;};
+  const grpKey=r=>((r.brand||'')+'|'+(r.model||'')).toLowerCase();
+  rows.sort((a,b)=>grpKey(a)!==grpKey(b)?0:volNum(a)-volNum(b));
   // довідка: форсунки (piezo + solenoid) зі збігом за oem/oe, яких немає серед знайдених авто
   const shownToks=new Set();
   rows.forEach(r=>{
