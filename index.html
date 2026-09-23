@@ -625,7 +625,7 @@ async function loadSolenoid(){
    Числові токени — повний збіг (як на сервері); повертаємо унікальні за 0445-ключем. */
 function piezoSearchMatch(q){
   const terms=String(q||'').toLowerCase().split(/\s+/).filter(Boolean);
-  if(!terms.length) return [];
+  if(!terms.length||terms.length>6) return [];   // не розсипати форсунки на велику вставку (таблиця/текст)
   const out=[],seen=new Set();
   for(const row of piezoRows){
     const oemToks=String(row.oem_number||'').split(/\s+/);
@@ -646,7 +646,7 @@ function piezoSearchMatch(q){
    Токен показу — введений 0445-номер цього рядка, інакше перший 0445, інакше 1-й токен. */
 function solenoidSearchMatch(q){
   const terms=String(q||'').toLowerCase().split(/\s+/).filter(Boolean);
-  if(!terms.length) return [];
+  if(!terms.length||terms.length>6) return [];   // не розсипати форсунки на велику вставку (таблиця/текст)
   const out=[],seen=new Set();
   for(const row of solenoidRows){
     const oemToks=String(row.oem||'').split(/[\s/]+/).filter(Boolean);
@@ -704,7 +704,7 @@ function continentalMatch(injector){
    Токен показу — введений continental-номер цього рядка, інакше перший A2C/5WS/562. */
 function continentalSearchMatch(q){
   const terms=String(q||'').toLowerCase().split(/\s+/).filter(Boolean);
-  if(!terms.length) return [];
+  if(!terms.length||terms.length>6) return [];   // не розсипати форсунки на велику вставку (таблиця/текст)
   const out=[],seen=new Set();
   for(const row of contRows){
     const oemToks=String(row.oem_continental||'').split(/\s+/);
@@ -761,7 +761,7 @@ function densoMatch(injector){
    denso-номер цього рядка, інакше «чистий» токен показу рядка. */
 function densoSearchMatch(q){
   const terms=String(q||'').toLowerCase().split(/\s+/).filter(Boolean);
-  if(!terms.length) return [];
+  if(!terms.length||terms.length>6) return [];   // не розсипати форсунки на велику вставку (таблиця/текст)
   const out=[],seen=new Set();
   for(const row of densoRows){
     const oemToks=String(row.oem_denso||'').split(/\s+/);
@@ -816,7 +816,7 @@ function delphiMatch(injector){
    в глобальний пошук, а авто з нею ще немає в базі). */
 function delphiSearchMatch(q){
   const terms=String(q||'').toLowerCase().split(/\s+/).filter(Boolean);
-  if(!terms.length) return [];
+  if(!terms.length||terms.length>6) return [];   // не розсипати форсунки на велику вставку (таблиця/текст)
   const out=[],seen=new Set();
   for(const row of delphiRows){
     const oemToks=String(row.oem_delphi||'').split(/\s+/);
