@@ -139,6 +139,18 @@ select{
 select:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(246,166,35,.14)}
 select:disabled{opacity:.45;cursor:not-allowed}
 select.set{border-color:#41506680}
+.combo{position:relative}
+.combo input.comboin{width:100%;height:42px;border-radius:10px;border:1px solid var(--line);background:var(--bg-2);color:var(--txt);padding:0 34px 0 12px;font-size:14px;outline:none;transition:border-color .15s,box-shadow .15s}
+.combo input.comboin:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(246,166,35,.14)}
+.combo input.comboin::placeholder{color:var(--txt)}
+.combo input.comboin:focus::placeholder{color:var(--muted)}
+.combo input.comboin.set{border-color:#41506680}
+.combo-list{display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:50;max-height:320px;overflow-y:auto;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.45);padding:4px 0}
+.combo.open .combo-list{display:block}
+.combo-opt{padding:7px 12px;font-size:14px;color:var(--txt);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.combo-opt.sel{color:var(--amber)}
+.combo-opt.hl{background:#1f6fd6;color:#fff}
+.combo-empty{padding:8px 12px;font-size:13px;color:var(--muted)}
 
 /* ---------- Results ---------- */
 .res-head{display:flex;align-items:center;justify-content:space-between;margin:26px 2px 12px;gap:12px}
@@ -845,6 +857,60 @@ function setFilterAndReload(key,val){
 }
 function updateResetBtn(){$('#resetFilters').classList.toggle('show',anyFilter());}
 
+/* Марка: випадаючий список з можливістю набору тексту (фільтр за початком назви) */
+function buildCombo(f){
+  const opts=optionsCache[f.key]||[];
+  const items=[['',`— всі (${opts.length}) —`],...opts.map(([v,n])=>[v,f.count?`${v}  (${n})`:v])];
+  const wrap=el('div','selwrap combo');
+  const inp=el('input','comboin');inp.type='text';
+  inp.autocomplete='off';inp.setAttribute('autocorrect','off');inp.setAttribute('autocapitalize','off');inp.spellcheck=false;
+  inp.setAttribute('data-form-type','other');inp.setAttribute('data-lpignore','true');inp.setAttribute('data-1p-ignore','true');inp.setAttribute('data-bwignore','true');
+  inp.setAttribute('role','combobox');inp.setAttribute('aria-autocomplete','list');inp.setAttribute('aria-expanded','false');
+  inp.placeholder=items[0][1];
+  const cur=state[f.key]||'';
+  const shown=()=>{const it=items.find(([v])=>v===cur);return cur&&it?it[1]:'';};
+  inp.value=shown();
+  if(cur)inp.classList.add('set');
+  const list=el('div','combo-list');list.setAttribute('role','listbox');
+  let vis=[],hl=-1,typed=false;
+  const draw=()=>{
+    const q=typed?inp.value.trim().toLowerCase():'';
+    vis=q?items.filter(([v])=>v&&v.toLowerCase().startsWith(q)):items;
+    list.innerHTML='';
+    if(!vis.length){const e=el('div','combo-empty');e.textContent='Нічого не знайдено';list.appendChild(e);return;}
+    vis.forEach(([v,t],i)=>{
+      const o=el('div','combo-opt');o.textContent=t;o.setAttribute('role','option');
+      if(v===cur)o.classList.add('sel');if(i===hl)o.classList.add('hl');
+      o.addEventListener('mousedown',e=>{e.preventDefault();pick(v);});
+      o.addEventListener('mousemove',()=>{if(hl!==i){hl=i;mark();}});
+      list.appendChild(o);
+    });
+  };
+  const mark=()=>{[...list.children].forEach((c,i)=>c.classList.toggle('hl',i===hl));
+    const c=list.children[hl];if(c&&c.scrollIntoView)c.scrollIntoView({block:'nearest'});};
+  const open=()=>{if(wrap.classList.contains('open'))return;typed=false;
+    hl=Math.max(0,items.findIndex(([v])=>v===cur));draw();wrap.classList.add('open');inp.setAttribute('aria-expanded','true');mark();};
+  const close=()=>{wrap.classList.remove('open');inp.setAttribute('aria-expanded','false');typed=false;inp.value=shown();};
+  const pick=v=>{close();inp.blur();if(v!==cur)setFilterAndReload(f.key,v);};
+  inp.addEventListener('focus',()=>{open();inp.select();});
+  inp.addEventListener('mousedown',()=>{if(document.activeElement===inp&&!wrap.classList.contains('open'))open();});
+  inp.addEventListener('input',()=>{typed=true;if(!wrap.classList.contains('open')){wrap.classList.add('open');inp.setAttribute('aria-expanded','true');}
+    hl=inp.value.trim()?0:-1;draw();});
+  inp.addEventListener('blur',close);
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();
+      if(!wrap.classList.contains('open')){open();return;}
+      if(!vis.length)return;
+      hl=e.key==='ArrowDown'?Math.min(vis.length-1,hl+1):Math.max(0,hl-1);mark();}
+    else if(e.key==='Enter'){e.preventDefault();
+      if(wrap.classList.contains('open')&&vis[hl])pick(vis[hl][0]);
+      else if(wrap.classList.contains('open')&&vis.length===1)pick(vis[0][0]);}
+    else if(e.key==='Escape'){e.preventDefault();close();inp.blur();}
+  });
+  wrap.appendChild(inp);wrap.appendChild(list);
+  return wrap;
+}
+
 function renderFilters(){
   const locked=!state.brand;
   const P=$('#filtersPrimary');P.innerHTML='';
@@ -866,6 +932,8 @@ function renderFilters(){
       inp.addEventListener('input',()=>{state[f.key]=norm(inp.value);inp.classList.toggle('set',!!state[f.key]);
         debouncedResults();updateResetBtn();});
       field.appendChild(inp);
+    }else if(f.key==='brand'){
+      field.appendChild(buildCombo(f));
     }else{
       const sw=el('div','selwrap');const sel=el('select');
       if(state[f.key])sel.classList.add('set');
