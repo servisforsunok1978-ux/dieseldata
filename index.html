@@ -145,6 +145,7 @@ select.set{border-color:#41506680}
 .combo input.comboin::placeholder{color:var(--txt)}
 .combo input.comboin:focus::placeholder{color:var(--muted)}
 .combo input.comboin.set{border-color:#41506680}
+.combo input.comboin:disabled{opacity:.45;cursor:not-allowed}
 .combo-list{display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:50;max-height:320px;overflow-y:auto;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.45);padding:4px 0}
 .combo.open .combo-list{display:block}
 .combo-opt{padding:7px 12px;font-size:14px;color:var(--txt);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -857,8 +858,8 @@ function setFilterAndReload(key,val){
 }
 function updateResetBtn(){$('#resetFilters').classList.toggle('show',anyFilter());}
 
-/* Марка: випадаючий список з можливістю набору тексту (фільтр за початком назви) */
-function buildCombo(f){
+/* Марка / модель: випадаючий список з можливістю набору тексту (фільтр за початком назви) */
+function buildCombo(f,disabled){
   const opts=optionsCache[f.key]||[];
   const items=[['',`— всі (${opts.length}) —`],...opts.map(([v,n])=>[v,f.count?`${v}  (${n})`:v])];
   const wrap=el('div','selwrap combo');
@@ -866,7 +867,7 @@ function buildCombo(f){
   inp.autocomplete='off';inp.setAttribute('autocorrect','off');inp.setAttribute('autocapitalize','off');inp.spellcheck=false;
   inp.setAttribute('data-form-type','other');inp.setAttribute('data-lpignore','true');inp.setAttribute('data-1p-ignore','true');inp.setAttribute('data-bwignore','true');
   inp.setAttribute('role','combobox');inp.setAttribute('aria-autocomplete','list');inp.setAttribute('aria-expanded','false');
-  inp.placeholder=items[0][1];
+  inp.placeholder=items[0][1];inp.disabled=!!disabled;
   const cur=state[f.key]||'';
   const shown=()=>{const it=items.find(([v])=>v===cur);return cur&&it?it[1]:'';};
   inp.value=shown();
@@ -875,7 +876,10 @@ function buildCombo(f){
   let vis=[],hl=-1,typed=false;
   const draw=()=>{
     const q=typed?inp.value.trim().toLowerCase():'';
-    vis=q?items.filter(([v])=>v&&v.toLowerCase().startsWith(q)):items;
+    // модель: збіг і за повною назвою («AUDI A4»), і без префікса марки («A4»)
+    const pre=f.key==='model'&&state.brand?state.brand.toLowerCase()+' ':'';
+    const hit=v=>{v=v.toLowerCase();return v.startsWith(q)||(pre&&v.startsWith(pre)&&v.slice(pre.length).startsWith(q));};
+    vis=q?items.filter(([v])=>v&&hit(v)):items;
     list.innerHTML='';
     if(!vis.length){const e=el('div','combo-empty');e.textContent='Нічого не знайдено';list.appendChild(e);return;}
     vis.forEach(([v,t],i)=>{
@@ -932,8 +936,8 @@ function renderFilters(){
       inp.addEventListener('input',()=>{state[f.key]=norm(inp.value);inp.classList.toggle('set',!!state[f.key]);
         debouncedResults();updateResetBtn();});
       field.appendChild(inp);
-    }else if(f.key==='brand'){
-      field.appendChild(buildCombo(f));
+    }else if(f.key==='brand'||f.key==='model'){
+      field.appendChild(buildCombo(f,disabled));
     }else{
       const sw=el('div','selwrap');const sel=el('select');
       if(state[f.key])sel.classList.add('set');
