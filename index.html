@@ -393,7 +393,7 @@ select.set{border-color:#41506680}
     <div class="spacer"></div>
     <div class="search" id="searchWrap">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>
-      <input id="globalSearch" name="q_search" type="search" inputmode="search" enterkeyhint="search" role="searchbox" placeholder="Пошук: код двигуна, № форсунки, VIN…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-autocomplete="none" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" readonly="">
+      <input id="globalSearch" name="q_search" type="search" inputmode="search" enterkeyhint="search" role="searchbox" placeholder="Пошук: № форсунки, насоса, OE-номер…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-autocomplete="none" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" readonly="">
       <button class="clr" id="searchClear" aria-label="Очистити">×</button>
     </div>
     <span class="acct" id="acct"><span class="em">remontforsunok.com@gmail.com</span></span>
@@ -425,7 +425,7 @@ select.set{border-color:#41506680}
   <div class="res-head">
     <div class="count" id="resCount">База: <b>237</b> модифікацій · <b>3</b> марки</div>
   </div>
-  <div class="cards" id="results"><div class="state"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"></path><path d="M5 13h14v5H5z"></path><circle cx="7.5" cy="18" r="1.6"></circle><circle cx="16.5" cy="18" r="1.6"></circle></svg><h3>Оберіть автомобіль</h3><p>Виберіть марку авто, далі — модель або інший параметр підбору. Або скористайтесь пошуком за кодом двигуна чи номером форсунки.</p></div></div>
+  <div class="cards" id="results"><div class="state"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"></path><path d="M5 13h14v5H5z"></path><circle cx="7.5" cy="18" r="1.6"></circle><circle cx="16.5" cy="18" r="1.6"></circle></svg><h3>Оберіть автомобіль</h3><p>Виберіть марку авто, далі — модель або інший параметр підбору. Або скористайтесь пошуком за номером форсунки чи насоса.</p></div></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1123,13 +1123,13 @@ function renderResults(){
       :`База: <b>${brandsMeta.total}</b> модифікацій · <b>${brandsMeta.count}</b> марки`;
     const body=brandChosen
       ?`<h3>Додайте ще один параметр</h3><p>Марку «${esc(state.brand)}» обрано. Виберіть модель, об'єм, роки, покоління, двигун або кузов — і з'являться результати. За однією маркою список не показується.</p>`
-      :`<h3>Оберіть автомобіль</h3><p>Виберіть марку авто, далі — модель або інший параметр підбору. Або скористайтесь пошуком за кодом двигуна чи номером форсунки.</p>`;
+      :`<h3>Оберіть автомобіль</h3><p>Виберіть марку авто, далі — модель або інший параметр підбору. Або скористайтесь пошуком за номером форсунки чи насоса.</p>`;
     box.innerHTML=`<div class="state"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M5 13h14v5H5z"/><circle cx="7.5" cy="18" r="1.6"/><circle cx="16.5" cy="18" r="1.6"/></svg>${body}</div>`;
     return;
   }
   if(resultState.mode==='brandonly'){
     cnt.innerHTML=`Уточніть запит`;
-    box.innerHTML=`<div class="state"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg><h3>Марку й модель обирайте у вікні підбору</h3><p>Пошук вгорі шукає за кодом двигуна, номером форсунки, насоса чи VIN. Щоб знайти авто за маркою та моделлю, скористайтеся блоком «Підбір автомобіля».</p></div>`;
+    box.innerHTML=`<div class="state"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg><h3>Марку й модель обирайте у вікні підбору</h3><p>Пошук вгорі шукає лише за номером форсунки, насоса чи OE-номером. Марку, модель, двигун та інші параметри авто обирайте в блоці «Підбір автомобіля».</p></div>`;
     return;
   }
   if(resultState.mode==='error'){
