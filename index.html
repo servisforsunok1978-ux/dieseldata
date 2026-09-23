@@ -799,7 +799,9 @@ async function loadDelphi(){
     if(disp){
       if(!delphiStore[disp]) delphiStore[disp]=row;
       String(row.oe_number||'').split(/[\s/]+/).forEach(t=>{
-        t=t.toLowerCase(); if(t&&!delphiOeIndex[t]) delphiOeIndex[t]=disp;
+        t=t.toLowerCase(); if(!t) return;
+        if(!delphiOeIndex[t]) delphiOeIndex[t]=disp;
+        const tn=normNum(t); if(tn&&!delphiOeIndex[tn]) delphiOeIndex[tn]=disp;
       });
     }
   });
@@ -809,7 +811,7 @@ function delphiMatch(injector){
   // 1) прямий oem_delphi-номер у форсунці
   for(const t of toks){ if(delphiStore[t]) return t; }
   // 2) збіг за OE-номером форсунки авто (EJBR…/HRD…/28…)
-  for(const t of toks){ const d=delphiOeIndex[t.toLowerCase()]; if(d) return d; }
+  for(const t of toks){ const d=delphiOeIndex[t.toLowerCase()]||delphiOeIndex[normNum(t)]; if(d) return d; }
   return null;
 }
 /* Пошук delphi-рядків за токеном запиту в oem_delphi АБО oe_number (форсунку ввели
@@ -821,7 +823,9 @@ function delphiSearchMatch(q){
   for(const row of delphiRows){
     const oemToks=String(row.oem_delphi||'').split(/\s+/);
     const all=oemToks.concat(String(row.oe_number||'').split(/[\s/]+/)).map(x=>x.toLowerCase());
-    if(!terms.some(t=>all.includes(t))) continue;              // збіг за повним токеном
+    const allNorm=all.map(normNum);
+    const qc=collapseQ(q);
+    if(!(terms.some(t=>{const tn=normNum(t);return all.includes(t)||allNorm.includes(tn)||allNorm.some(s=>hashMatch(tn,s));})||(qc.length>=4&&(allNorm.includes(qc)||allNorm.some(s=>hashMatch(qc,s)))))) continue;  // повний / нормалізований / #-wildcard токен АБО склеєний запит
     const disp=delphiDispTok(row); if(!disp) continue;
     const typed=terms.find(t=>oemToks.some(x=>x.toLowerCase()===t));
     const tok=typed?oemToks.find(x=>x.toLowerCase()===typed):disp;
