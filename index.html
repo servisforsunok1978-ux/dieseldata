@@ -876,9 +876,12 @@ function buildCombo(f,disabled){
   let vis=[],hl=-1,typed=false;
   const draw=()=>{
     const q=typed?inp.value.trim().toLowerCase():'';
-    // модель: збіг і за повною назвою («AUDI A4»), і без префікса марки («A4»)
-    const pre=f.key==='model'&&state.brand?state.brand.toLowerCase()+' ':'';
-    const hit=v=>{v=v.toLowerCase();return v.startsWith(q)||(pre&&v.startsWith(pre)&&v.slice(pre.length).startsWith(q));};
+    // модель: збіг за повною назвою («AUDI A4», «VW Golf»), без префікса марки («A4», «Golf»)
+    // і з повною назвою марки («Volkswagen Golf») — префікс у моделі не завжди = марка
+    const brand=(state.brand||'').toLowerCase();
+    const hit=v=>{v=v.toLowerCase();if(v.startsWith(q))return true;if(f.key!=='model')return false;
+      const i=v.indexOf(' ');if(i<0)return false;const rest=v.slice(i+1);
+      return rest.startsWith(q)||(!!brand&&(brand+' '+rest).startsWith(q));};
     vis=q?items.filter(([v])=>v&&hit(v)):items;
     list.innerHTML='';
     if(!vis.length){const e=el('div','combo-empty');e.textContent='Нічого не знайдено';list.appendChild(e);return;}
